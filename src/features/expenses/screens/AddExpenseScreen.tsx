@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -11,18 +11,24 @@ import { FinancialType } from '../types';
 
 type AddExpenseScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddExpense'>;
 
-const ICONS = ['cart', 'game-controller', 'car', 'medical', 'pricetag', 'restaurant', 'cafe', 'fitness', 'school', 'construct', 'airplane', 'home', 'football', 'basketball', 'bicycle'];
+const ICONS = [
+  'cart', 'game-controller', 'car', 'medical', 'pricetag', 'restaurant', 'cafe', 'fitness', 
+  'school', 'construct', 'airplane', 'home', 'football', 'basketball', 'bicycle',
+  'paw', 'book', 'briefcase', 'bus', 'call', 'camera', 'card', 'cash', 'desktop', 'gift',
+  'globe', 'heart', 'key', 'laptop', 'map', 'musical-notes', 'pizza', 'shirt', 'train', 'wallet', 'wifi'
+];
 const COLORS = ['#FF5722', '#9C27B0', '#2196F3', '#F44336', '#607D8B', '#4CAF50', '#FFC107', '#E91E63', '#795548', '#3F51B5'];
 
 export default function AddExpenseScreen() {
   const navigation = useNavigation<AddExpenseScreenNavigationProp>();
-  const { addExpense, preferences, getMostUsedCategories, addCategory, categories: allCategories } = useStore();
+  const { addExpense, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  console.log("allCategories",allCategories);
 
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedCategoryName, setSelectedCategoryName] = useState<string>('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [financialType, setFinancialType] = useState<FinancialType>('unclassified');
   
@@ -31,15 +37,26 @@ export default function AddExpenseScreen() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState(ICONS[0]);
   const [newCategoryColor, setNewCategoryColor] = useState(COLORS[0]);
+  
+  // UI State
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showAllIcons, setShowAllIcons] = useState(false);
+  const INITIAL_CATEGORY_COUNT = 9;
+  const INITIAL_ICON_COUNT = 15;
 
   const categories = getMostUsedCategories();
   const filteredCategories = categories.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const showSearch = categories.length > 10;
 
   useEffect(() => {
-    if (categories.length > 0 && !selectedCategoryName) {
+    // Ensure we have default categories if the list is empty or small
+    ensureDefaultCategories();
+  }, []);
+
+  useEffect(() => {
+    if (categories.length > 0 && !selectedCategoryId) {
       const firstCat = categories[0];
-      setSelectedCategoryName(firstCat.name);
+      setSelectedCategoryId(firstCat.id);
       if (firstCat.financialType) {
         setFinancialType(firstCat.financialType);
       }
@@ -47,9 +64,9 @@ export default function AddExpenseScreen() {
   }, [categories]);
 
   // Update financial type when category changes
-  const handleCategorySelect = (categoryName: string) => {
-    setSelectedCategoryName(categoryName);
-    const category = allCategories.find(c => c.name === categoryName);
+  const handleCategorySelect = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    const category = allCategories.find(c => c.id === categoryId);
     if (category?.financialType) {
       setFinancialType(category.financialType);
     }
@@ -75,7 +92,7 @@ export default function AddExpenseScreen() {
     await addExpense({
       amount: numAmount,
       description,
-      category: selectedCategoryName,
+      categoryId: selectedCategoryId,
       date: new Date().toISOString(),
       financialType: financialType,
     });
@@ -90,7 +107,11 @@ export default function AddExpenseScreen() {
         icon: newCategoryIcon,
         color: newCategoryColor,
       });
-      setSelectedCategoryName(newCategoryName);
+      // We can't easily set the selected ID here because addCategory is async and void in the store interface
+      // Ideally addCategory should return the new category or ID.
+      // For now, we rely on the store update to trigger a re-render or effect if needed, 
+      // but since we don't have the ID immediately, we might need to find it by name or wait.
+      // However, for UX, let's just close the modal. The user can select it from the list.
       setModalVisible(false);
       setNewCategoryName('');
       setNewCategoryIcon(ICONS[0]);
@@ -341,24 +362,24 @@ export default function AddExpenseScreen() {
         )}
 
         <View style={styles.categoryContainer}>
-          {filteredCategories.map((cat) => (
+          {filteredCategories.slice(0, showAllCategories ? undefined : INITIAL_CATEGORY_COUNT).map((cat) => (
             <TouchableOpacity
               key={cat.id}
               style={[
                 styles.categoryChip,
-                selectedCategoryName === cat.name && styles.categoryChipSelected,
+                selectedCategoryId === cat.id && styles.categoryChipSelected,
               ]}
-              onPress={() => handleCategorySelect(cat.name)}
+              onPress={() => handleCategorySelect(cat.id)}
             >
               <Ionicons 
                 name={cat.icon as any} 
                 size={16} 
-                color={selectedCategoryName === cat.name ? '#FFFFFF' : cat.color} 
+                color={selectedCategoryId === cat.id ? '#FFFFFF' : cat.color} 
               />
               <Text
                 style={[
                   styles.categoryText,
-                  selectedCategoryName === cat.name && styles.categoryTextSelected,
+                  selectedCategoryId === cat.id && styles.categoryTextSelected,
                 ]}
               >
                 {cat.name}
@@ -366,6 +387,18 @@ export default function AddExpenseScreen() {
             </TouchableOpacity>
           ))}
           
+          {filteredCategories.length > INITIAL_CATEGORY_COUNT && (
+            <TouchableOpacity 
+              style={styles.categoryChip} 
+              onPress={() => setShowAllCategories(!showAllCategories)}
+            >
+              <Text style={styles.categoryText}>
+                {showAllCategories ? 'Ver menos' : `Ver más (${filteredCategories.length - INITIAL_CATEGORY_COUNT})`}
+              </Text>
+              <Ionicons name={showAllCategories ? "chevron-up" : "chevron-down"} size={16} color={currentTheme.text} />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity 
             style={styles.addCategoryButton} 
             onPress={() => setModalVisible(true)}
@@ -381,53 +414,65 @@ export default function AddExpenseScreen() {
 
       {/* Quick Add Category Modal */}
       <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Nueva Categoría</Text>
-            
-            <Text style={styles.sectionLabel}>Nombre</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ej: Fútbol"
-              placeholderTextColor={currentTheme.textSecondary}
-              value={newCategoryName}
-              onChangeText={setNewCategoryName}
-            />
-
-            <Text style={styles.sectionLabel}>Icono</Text>
-            <View style={styles.grid}>
-              {ICONS.map(icon => (
-                <TouchableOpacity 
-                  key={icon} 
-                  style={[styles.selectionItem, newCategoryIcon === icon && styles.selectedItem, { backgroundColor: currentTheme.surface }]}
-                  onPress={() => setNewCategoryIcon(icon)}
-                >
-                  <Ionicons name={icon as any} size={20} color={currentTheme.text} />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.sectionLabel}>Color</Text>
-            <View style={styles.grid}>
-              {COLORS.map(color => (
-                <TouchableOpacity 
-                  key={color} 
-                  style={[styles.selectionItem, newCategoryColor === color && styles.selectedItem, { backgroundColor: color }]}
-                  onPress={() => setNewCategoryColor(color)}
+        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+          <View style={styles.modalContainer}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Nueva Categoría</Text>
+                
+                <Text style={styles.sectionLabel}>Nombre</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej: Fútbol"
+                  placeholderTextColor={currentTheme.textSecondary}
+                  value={newCategoryName}
+                  onChangeText={setNewCategoryName}
                 />
-              ))}
-            </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.button} onPress={() => setModalVisible(false)}>
-                <Text style={styles.buttonText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.button} onPress={handleQuickAddCategory}>
-                <Text style={styles.buttonText}>Guardar</Text>
-              </TouchableOpacity>
-            </View>
+                <Text style={styles.sectionLabel}>Icono</Text>
+                <View style={styles.grid}>
+                  {ICONS.slice(0, showAllIcons ? undefined : INITIAL_ICON_COUNT).map(icon => (
+                    <TouchableOpacity 
+                      key={icon} 
+                      style={[styles.selectionItem, newCategoryIcon === icon && styles.selectedItem, { backgroundColor: currentTheme.surface }]}
+                      onPress={() => setNewCategoryIcon(icon)}
+                    >
+                      <Ionicons name={icon as any} size={20} color={currentTheme.text} />
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity 
+                    style={[styles.selectionItem, { backgroundColor: currentTheme.surface, width: 'auto', paddingHorizontal: 12 }]}
+                    onPress={() => setShowAllIcons(!showAllIcons)}
+                  >
+                    <Text style={{ fontSize: 12, color: currentTheme.primary, fontWeight: 'bold' }}>
+                      {showAllIcons ? 'Menos' : 'Ver más'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.sectionLabel}>Color</Text>
+                <View style={styles.grid}>
+                  {COLORS.map(color => (
+                    <TouchableOpacity 
+                      key={color} 
+                      style={[styles.selectionItem, newCategoryColor === color && styles.selectedItem, { backgroundColor: color }]}
+                      onPress={() => setNewCategoryColor(color)}
+                    />
+                  ))}
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.button} onPress={() => setModalVisible(false)}>
+                    <Text style={styles.buttonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.button} onPress={handleQuickAddCategory}>
+                    <Text style={styles.buttonText}>Guardar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );

@@ -10,11 +10,12 @@ export interface CategoriesSlice {
   removeCategory: (id: string) => Promise<void>;
   resetToMockData: () => void;
   getMostUsedCategories: () => Category[];
+  ensureDefaultCategories: () => Promise<void>;
 }
 
 // Mock data generator
 const getMockCategories = (): Category[] => [
-  { id: '1', name: 'Supermercado', icon: 'cart', color: '#FF5722' },
+  { id: '1', name: 'Supermercado222', icon: 'cart', color: '#FF5722' },
   { id: '2', name: 'Entretenimiento', icon: 'game-controller', color: '#9C27B0' },
   { id: '3', name: 'Transporte', icon: 'car', color: '#2196F3' },
   { id: '4', name: 'Salud', icon: 'medical', color: '#F44336' },
@@ -39,8 +40,19 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         
         if (!userId) {
           console.error('No user ID available for categories');
-          set({ categories: getMockCategories() });
+          set({ categories: [] });
           return;
+        }
+
+        // SANITY CHECK: Remove any mock data (ids like "1", "2") from state immediately
+        // We do this by setting state to empty before loading, or filtering current state.
+        // To be safe, let's clear it if we detect any invalid ID.
+        const currentCategories = get().categories;
+        const hasInvalidIds = currentCategories.some(c => c.id.length < 10);
+        
+        if (hasInvalidIds) {
+          console.log('Purging mock categories from state...');
+          set({ categories: [] });
         }
         
         const { data, error } = await supabase
@@ -51,7 +63,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         
         if (error) {
           console.error('Error loading categories from Supabase:', error);
-          set({ categories: getMockCategories() });
+          set({ categories: [] });
           return;
         }
         
@@ -77,18 +89,24 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
           
           if (insertError) {
             console.error('Error creating default categories:', insertError);
-            set({ categories: getMockCategories() });
+            set({ categories: [] });
           } else {
             console.log('Default categories created successfully');
-            set({ categories: insertedData || getMockCategories() });
+            set({ categories: insertedData || [] });
           }
         } else {
+          // Ensure we don't accidentally merge with mock data if it wasn't cleared
+          // We replace the entire state with the fetched data
           set({ categories: data });
         }
       }
     } catch (error) {
       console.error('Error in loadCategories:', error);
-      set({ categories: getMockCategories() });
+      if (isDemoMode) {
+        set({ categories: getMockCategories() });
+      } else {
+        set({ categories: [] });
+      }
     }
   },
 
@@ -202,6 +220,66 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
 
   getMostUsedCategories: () => {
     const { categories } = get();
-    return [...categories].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+    const isDemoMode = (get() as any).isDemoMode;
+    
+    // Extra safety filter: if not demo mode, hide mock categories
+    const filteredCategories = isDemoMode 
+      ? categories 
+      : categories.filter(c => c.id.length > 10);
+      
+    return [...filteredCategories].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+  },
+
+  ensureDefaultCategories: async () => {
+    const isDemoMode = (get() as any).isDemoMode;
+    if (isDemoMode) return;
+
+    const { supabase } = await import('../../services/supabase');
+    const userId = (get() as any).user?.id;
+    
+    if (!userId) return;
+
+    try {
+      // Check existing categories count
+      const { count, error } = await supabase
+        .from('categories')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error checking categories count:', error);
+        return;
+      }
+
+      // If less than 3 categories, create defaults
+      if (count === null || count < 3) {
+        console.log('Less than 3 categories found. Creating defaults...');
+        const defaultCategories = getMockCategories();
+        
+        const categoriesToInsert = defaultCategories.map(cat => ({
+          name: cat.name,
+          icon: cat.icon,
+          color: cat.color,
+          usage_count: 0,
+          financial_type: 'unclassified',
+          user_id: userId,
+        }));
+        
+        const { data, error: insertError } = await supabase
+          .from('categories')
+          .insert(categoriesToInsert)
+          .select();
+        
+        if (insertError) {
+          console.error('Error creating default categories:', insertError);
+        } else if (data) {
+          console.log('Default categories created successfully');
+          // Reload all categories to ensure consistency and avoid duplicates in state
+          await get().loadCategories();
+        }
+      }
+    } catch (error) {
+      console.error('Error in ensureDefaultCategories:', error);
+    }
   },
 });

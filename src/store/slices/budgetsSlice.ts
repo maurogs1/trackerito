@@ -8,7 +8,7 @@ export interface BudgetsSlice {
   loadBudgets: () => Promise<void>;
   setCategoryBudget: (categoryId: string, limitAmount: number) => Promise<void>;
   resetToMockData: () => void;
-  getBudgetProgress: (categoryName: string) => { spent: number; limit: number; percentage: number } | null;
+  getBudgetProgress: (categoryId: string) => { spent: number; limit: number; percentage: number } | null;
 }
 
 // Mock data generator
@@ -106,20 +106,16 @@ export const createBudgetsSlice: StateCreator<BudgetsSlice> = (set, get) => ({
     set({ budgets: getMockBudgets() });
   },
 
-  getBudgetProgress: (categoryName) => {
+  getBudgetProgress: (categoryId) => {
     const { budgets } = get();
-    const categories = (get() as any).categories || [];
     const expenses = (get() as any).expenses || [];
     
-    const category = categories.find((c: any) => c.name === categoryName);
-    if (!category) return null;
-
-    const budget = budgets.find(b => b.categoryId === category.id);
+    const budget = budgets.find(b => b.categoryId === categoryId);
     if (!budget) return null;
 
     const now = new Date();
     const spent = expenses
-      .filter((e: any) => e.category === categoryName && isSameMonth(new Date(e.date), now))
+      .filter((e: any) => e.categoryId === categoryId && isSameMonth(new Date(e.date), now))
       .reduce((sum: number, e: any) => sum + e.amount, 0);
 
     return {

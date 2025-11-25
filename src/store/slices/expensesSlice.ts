@@ -15,13 +15,13 @@ export interface ExpensesSlice {
 
 // Mock data generator
 const getMockExpenses = (): Expense[] => [
-  { id: '1', amount: 15000, category: 'Supermercado', description: 'Compra semanal', date: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: '2', amount: 4500, category: 'Entretenimiento', description: 'Cine con amigos', date: new Date(Date.now() - 86400000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '3', amount: 3200, category: 'Transporte', description: 'Uber al trabajo', date: new Date(Date.now() - 172800000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '4', amount: 12000, category: 'Salud', description: 'Farmacia', date: new Date(Date.now() - 259200000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '5', amount: 8500, category: 'Restaurante', description: 'Cena romántica', date: new Date(Date.now() - 345600000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '6', amount: 60000, category: 'Hogar', description: 'Alquiler', date: startOfMonth(new Date()).toISOString(), createdAt: new Date().toISOString() },
-  { id: '7', amount: 2500, category: 'Café', description: 'Starbucks', date: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: '1', amount: 15000, categoryId: '1', description: 'Compra semanal', date: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: '2', amount: 4500, categoryId: '2', description: 'Cine con amigos', date: new Date(Date.now() - 86400000).toISOString(), createdAt: new Date().toISOString() },
+  { id: '3', amount: 3200, categoryId: '3', description: 'Uber al trabajo', date: new Date(Date.now() - 172800000).toISOString(), createdAt: new Date().toISOString() },
+  { id: '4', amount: 12000, categoryId: '4', description: 'Farmacia', date: new Date(Date.now() - 259200000).toISOString(), createdAt: new Date().toISOString() },
+  { id: '5', amount: 8500, categoryId: '5', description: 'Cena romántica', date: new Date(Date.now() - 345600000).toISOString(), createdAt: new Date().toISOString() },
+  { id: '6', amount: 60000, categoryId: '6', description: 'Alquiler', date: startOfMonth(new Date()).toISOString(), createdAt: new Date().toISOString() },
+  { id: '7', amount: 2500, categoryId: '7', description: 'Starbucks', date: new Date().toISOString(), createdAt: new Date().toISOString() },
 ];
 
 export const createExpensesSlice: StateCreator<
@@ -52,7 +52,12 @@ export const createExpensesSlice: StateCreator<
           console.error('Error loading expenses from Supabase:', error);
           set({ expenses: [], isLoading: false } as any);
         } else {
-          set({ expenses: data || [], isLoading: false } as any);
+          const loadedExpenses = (data || []).map((item: any) => ({
+            ...item,
+            amount: Number(item.amount),
+            categoryId: item.category_id || item.category // Fallback for migration
+          }));
+          set({ expenses: loadedExpenses, isLoading: false } as any);
         }
       }
     } catch (error) {
@@ -79,7 +84,7 @@ export const createExpensesSlice: StateCreator<
         set((state) => {
           const categories = (state as any).categories || [];
           const updatedCategories = categories.map((c: any) => 
-            c.name === expenseData.category 
+            c.id === expenseData.categoryId 
               ? { ...c, usageCount: (c.usageCount || 0) + 1 } 
               : c
           );
@@ -108,7 +113,7 @@ export const createExpensesSlice: StateCreator<
         const expenseToInsert = {
           // No id field - Supabase will generate it
           amount: expenseData.amount,
-          category: expenseData.category,
+          category_id: expenseData.categoryId,
           description: expenseData.description,
           date: expenseData.date,
           financial_type: expenseData.financialType || 'unclassified',
@@ -132,8 +137,8 @@ export const createExpensesSlice: StateCreator<
         // Use the expense returned by Supabase (includes generated ID)
         const savedExpense: Expense = {
           id: data[0].id,
-          amount: data[0].amount,
-          category: data[0].category,
+          amount: Number(data[0].amount),
+          categoryId: data[0].category_id,
           description: data[0].description,
           date: data[0].date,
           createdAt: data[0].created_at,
@@ -143,7 +148,7 @@ export const createExpensesSlice: StateCreator<
         set((state) => {
           const categories = (state as any).categories || [];
           const updatedCategories = categories.map((c: any) => 
-            c.name === expenseData.category 
+            c.id === expenseData.categoryId 
               ? { ...c, usageCount: (c.usageCount || 0) + 1 } 
               : c
           );

@@ -32,18 +32,18 @@ export default function DashboardScreen() {
     
     expenses.forEach(e => {
       if (new Date(e.date).getMonth() === currentMonth) {
-         categoryTotals[e.category] = (categoryTotals[e.category] || 0) + e.amount;
+         categoryTotals[e.categoryId] = (categoryTotals[e.categoryId] || 0) + e.amount;
       }
     });
     
     const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
     if (sorted.length === 0) return null;
     
-    const categoryName = sorted[0][0];
-    const category = categories.find(c => c.name === categoryName);
+    const categoryId = sorted[0][0];
+    const category = categories.find(c => c.id === categoryId);
     
     return { 
-      name: categoryName, 
+      name: category?.name || 'Desconocido', 
       amount: sorted[0][1],
       icon: category?.icon || 'pricetag',
       color: category?.color || currentTheme.text
@@ -521,19 +521,19 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
         {expenses.slice(0, 5).map((expense) => {
-          const category = categories.find(c => c.name === expense.category) || { icon: 'pricetag', color: currentTheme.textSecondary };
+          const category = categories.find(c => c.id === expense.categoryId) || { name: 'Desconocido', icon: 'pricetag', color: currentTheme.textSecondary };
           return (
             <View key={expense.id} style={styles.expenseItem}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.iconContainer, { backgroundColor: category.color + '20' }]}>
+                <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
                   <Ionicons name={category.icon as any} size={24} color={category.color} />
                 </View>
                 <View>
                   <Text style={styles.expenseDescription}>{expense.description}</Text>
-                  <Text style={styles.expenseCategory}>{expense.category}</Text>
+                  <Text style={styles.expenseCategory}>{category.name}</Text>
                 </View>
               </View>
-              <Text style={styles.expenseAmount}>-${expense.amount.toFixed(0)}</Text>
+              <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
             </View>
           );
         })}

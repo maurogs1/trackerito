@@ -12,7 +12,7 @@ export interface Category {
 export interface Expense {
   id: string;
   amount: number;
-  category: string; // Store category ID or Name (using Name for simplicity in this mock)
+  categoryId: string; // Foreign Key to Categories table
   description: string;
   date: string; // ISO string
   createdAt: string;

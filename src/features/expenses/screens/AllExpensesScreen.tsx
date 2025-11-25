@@ -45,7 +45,7 @@ export default function AllExpensesScreen() {
 
     // Filter by category
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(e => e.category === selectedCategory);
+      filtered = filtered.filter(e => e.categoryId === selectedCategory);
     }
 
     // Filter by period
@@ -68,10 +68,11 @@ export default function AllExpensesScreen() {
 
     // Filter by search query
     if (searchQuery.trim()) {
-      filtered = filtered.filter(e => 
-        e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.category.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      filtered = filtered.filter(e => {
+        const category = categories.find(c => c.id === e.categoryId);
+        return e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               (category?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+      });
     }
 
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -467,7 +468,7 @@ export default function AllExpensesScreen() {
 
   const categoryFilters = [
     { value: 'all', label: 'Todas' },
-    ...categories.map(c => ({ value: c.name, label: c.name })),
+    ...categories.map(c => ({ value: c.id, label: c.name })),
   ];
 
   const handlePeriodSelect = (period: FilterPeriod) => {
@@ -532,7 +533,7 @@ export default function AllExpensesScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.filterRow}>
               {categoryFilters.map(filter => {
-                const category = categories.find(c => c.name === filter.value);
+                const category = categories.find(c => c.id === filter.value);
                 return (
                   <TouchableOpacity
                     key={filter.value}
@@ -591,7 +592,8 @@ export default function AllExpensesScreen() {
           </View>
         ) : (
           filteredExpenses.map((expense) => {
-            const category = categories.find(c => c.name === expense.category) || {
+            const category = categories.find(c => c.id === expense.categoryId) || {
+              name: 'Desconocido',
               icon: 'pricetag',
               color: currentTheme.textSecondary,
             };
@@ -601,13 +603,13 @@ export default function AllExpensesScreen() {
                 style={styles.expenseItem}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                  <View style={[styles.iconContainer, { backgroundColor: category.color + '20' }]}>
+                  <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
                     <Ionicons name={category.icon as any} size={18} color={category.color} />
                   </View>
                   <View style={styles.expenseDetails}>
                     <Text style={styles.expenseDescription}>{expense.description}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={styles.expenseCategory}>{expense.category}</Text>
+                      <Text style={styles.expenseCategory}>{category.name}</Text>
                       <Text style={[styles.expenseCategory, { marginHorizontal: 4 }]}>•</Text>
                       <Text style={styles.expenseCategory}>{format(parseISO(expense.date), 'd MMM', { locale: es })}</Text>
                     </View>
