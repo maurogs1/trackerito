@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,7 +26,7 @@ import { es } from 'date-fns/locale';
 type FilterPeriod = 'all' | 'week' | 'month' | 'custom';
 
 export default function AllExpensesScreen() {
-  const { expenses, categories, preferences } = useStore();
+  const { expenses, categories, preferences, removeExpense } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
 
@@ -90,6 +90,42 @@ export default function AllExpensesScreen() {
       } else {
         setCustomDateRange({ ...customDateRange, end: day });
       }
+    }
+  };
+  
+  const handleDelete = (id: string) => {
+    console.log('handleDelete called with id:', id);
+    
+    // Check platform using React Native's Platform API
+    const isWeb = Platform.OS === 'web';
+    
+    if (isWeb) {
+      // Web fallback - use window.confirm
+      // @ts-ignore - window exists on web platform
+      const confirmed = window.confirm('¿Estás seguro de que quieres eliminar este gasto?');
+      console.log('Web confirm result:', confirmed);
+      if (confirmed) {
+        console.log('Removing expense:', id);
+        removeExpense(id);
+      }
+    } else {
+      // Native Alert
+      console.log('Showing native Alert');
+      Alert.alert(
+        "Eliminar Gasto",
+        "¿Estás seguro de que quieres eliminar este gasto?",
+        [
+          { text: "Cancelar", style: "cancel", onPress: () => console.log('Cancelled') },
+          { 
+            text: "Eliminar", 
+            style: "destructive", 
+            onPress: () => {
+              console.log('Removing expense:', id);
+              removeExpense(id);
+            }
+          }
+        ]
+      );
     }
   };
 
@@ -560,8 +596,11 @@ export default function AllExpensesScreen() {
               color: currentTheme.textSecondary,
             };
             return (
-              <View key={expense.id} style={styles.expenseItem}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View 
+                key={expense.id} 
+                style={styles.expenseItem}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                   <View style={[styles.iconContainer, { backgroundColor: category.color + '20' }]}>
                     <Ionicons name={category.icon as any} size={18} color={category.color} />
                   </View>
@@ -574,7 +613,41 @@ export default function AllExpensesScreen() {
                     </View>
                   </View>
                 </View>
-                <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                    <TouchableOpacity 
+                      onPress={() => {
+                        console.log('Edit button pressed for expense:', expense.id);
+                        Alert.alert('Editar', 'Función de editar próximamente');
+                      }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={{ 
+                        padding: 8, 
+                        backgroundColor: currentTheme.primary + '20', 
+                        borderRadius: 6 
+                      }}
+                    >
+                      <Ionicons name="pencil" size={16} color={currentTheme.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={() => {
+                        console.log('Delete button pressed for expense:', expense.id);
+                        handleDelete(expense.id);
+                      }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={{ 
+                        padding: 8, 
+                        backgroundColor: currentTheme.error + '20', 
+                        borderRadius: 6 
+                      }}
+                    >
+                      <Ionicons name="trash" size={16} color={currentTheme.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
             );
           })

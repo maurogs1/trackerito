@@ -1,23 +1,149 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { makeRedirectUri } from 'expo-auth-session';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import * as WebBrowser from 'expo-web-browser';
+import { supabase } from '../../../services/supabase';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
-  const { login, isLoading, preferences, error } = useStore();
+  const { isLoading, preferences, error } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  // Handle OAuth callback via deep link
+  useEffect(() => {
+    console.log('Setting up URL listener for OAuth callback...');
+    
+    const handleUrl = async ({ url }: { url: string }) => {
+      console.log('Received URL:', url);
+      
+      if (url.includes('auth/callback')) {
+        console.log('OAuth callback URL detected');
+        const { params, errorCode } = QueryParams.getQueryParams(url);
+        console.log('Callback params:', params);
+        console.log('Callback error code:', errorCode);
 
-  const handleLogin = async () => {
-    if (!username || !password) {
-      Alert.alert('Error', 'Por favor ingresa usuario y contraseña');
-      return;
+        if (errorCode) {
+          console.error('OAuth error:', errorCode);
+          Alert.alert('Error', `Error de autenticación: ${errorCode}`);
+          return;
+        }
+
+        if (params.access_token && params.refresh_token) {
+          console.log('Tokens found in callback, setting session...');
+          try {
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: params.access_token,
+              refresh_token: params.refresh_token,
+            });
+
+            console.log('Session set from callback:', sessionData);
+            if (sessionError) {
+              console.error('Session error from callback:', sessionError);
+              throw sessionError;
+            }
+
+
+            console.log('Updating store from callback...');
+            useStore.setState({
+              isAuthenticated: true,
+              user: sessionData.user
+            });
+          } catch (e: any) {
+            console.error('Error setting session from callback:', e);
+            Alert.alert('Error', e.message || 'Error al completar la autenticación');
+          }
+        } else {
+          console.error('Missing tokens in callback URL');
+        }
+      }
+    };
+
+    // Listen for URL events
+    const subscription = Linking.addEventListener('url', handleUrl);
+
+    // Check if the app was opened with a URL
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log('App opened with URL:', url);
+        handleUrl({ url });
+      }
+    });
+
+    return () => {
+      console.log('Cleaning up URL listener');
+      subscription.remove();
+    };
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    console.log('Starting Google login...');
+    try {
+      const redirectUri = makeRedirectUri({
+        scheme: 'trackerito',
+        path: 'auth/callback',
+      });
+      console.log('Redirect URI:', redirectUri);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUri,
+        },
+      });
+
+      if (error) throw error;
+      console.log('OAuth data:', data);
+      
+      if (data.url) {
+        console.log('Opening auth session...');
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+        console.log('Auth session result:', result);
+        
+        if (result.type === 'success') {
+          const { url } = result;
+          console.log('Success URL:', url);
+          const { params, errorCode } = QueryParams.getQueryParams(url);
+          console.log('Parsed params:', params);
+          console.log('Error code:', errorCode);
+
+          if (errorCode) throw new Error(errorCode);
+          
+          if (params.access_token && params.refresh_token) {
+            console.log('Setting session with tokens...');
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: params.access_token,
+              refresh_token: params.refresh_token,
+            });
+            
+            console.log('Session data:', sessionData);
+            if (sessionError) {
+              console.error('Session error:', sessionError);
+              throw sessionError;
+            }
+            
+            // Manually update the store state
+            console.log('Session set successfully, updating store...');
+            useStore.setState({ 
+              isAuthenticated: true, 
+              user: sessionData.user 
+            });
+          } else {
+            console.error('Missing tokens in params');
+          }
+        } else {
+          console.log('Auth session was not successful:', result.type);
+        }
+      }
+    } catch (e: any) {
+      console.error('Error during Google login:', e);
+      Alert.alert('Error', e.message || 'Error al iniciar sesión con Google');
     }
-    await login(username, password);
   };
 
   const styles = StyleSheet.create({
@@ -29,7 +155,7 @@ export default function LoginScreen() {
     },
     header: {
       alignItems: 'center',
-      marginBottom: 40,
+      marginBottom: 60,
     },
     title: {
       fontSize: 32,
@@ -41,87 +167,29 @@ export default function LoginScreen() {
       fontSize: 16,
       color: currentTheme.textSecondary,
       marginTop: 8,
-    },
-    formContainer: {
-      width: '100%',
-    },
-    inputContainer: {
-      marginBottom: 16,
-    },
-    inputLabel: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: currentTheme.text,
-      marginBottom: 8,
-      marginLeft: 4,
-    },
-    inputWrapper: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: currentTheme.surface,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: currentTheme.border,
-      paddingHorizontal: 12,
-    },
-    inputIcon: {
-      marginRight: 10,
-    },
-    input: {
-      flex: 1,
-      paddingVertical: 16,
-      fontSize: 16,
-      color: currentTheme.text,
-      paddingHorizontal: 8, // Added horizontal padding
-    },
-    loginButton: {
-      backgroundColor: currentTheme.primary,
-      padding: 18,
-      borderRadius: 12,
-      alignItems: 'center',
-      marginTop: 24,
-      shadowColor: currentTheme.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    loginButtonText: {
-      color: '#FFFFFF',
-      fontSize: 18,
-      fontWeight: 'bold',
+      textAlign: 'center',
+      paddingHorizontal: 20,
     },
     googleButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: currentTheme.surface,
-      padding: 16,
+      padding: 18,
       borderRadius: 12,
-      marginTop: 16,
       borderWidth: 1,
       borderColor: currentTheme.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
     },
     googleButtonText: {
       color: currentTheme.text,
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '600',
       marginLeft: 12,
-    },
-    footer: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      marginTop: 24,
-    },
-    footerText: {
-      color: currentTheme.textSecondary,
-      fontSize: 14,
-    },
-    signupText: {
-      color: currentTheme.primary,
-      fontSize: 14,
-      fontWeight: 'bold',
-      marginLeft: 4,
     },
     errorText: {
       color: currentTheme.error,
@@ -134,68 +202,28 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="wallet" size={64} color={currentTheme.primary} />
-        <Text style={styles.title}>Bienvenido</Text>
-        <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+        <Ionicons name="wallet" size={80} color={currentTheme.primary} />
+        <Text style={styles.title}>Trackerito</Text>
+        <Text style={styles.subtitle}>Tu compañero financiero inteligente. Inicia sesión para sincronizar tus datos.</Text>
       </View>
 
-      <View style={styles.formContainer}>
-        {error && <Text style={styles.errorText}>{error}</Text>}
+      {error && <Text style={styles.errorText}>{error}</Text>}
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Usuario</Text>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="person-outline" size={20} color={currentTheme.textSecondary} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Usuario"
-              placeholderTextColor={currentTheme.textSecondary}
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-            />
-          </View>
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Contraseña</Text>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="lock-closed-outline" size={20} color={currentTheme.textSecondary} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Contraseña"
-              placeholderTextColor={currentTheme.textSecondary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-        </View>
-
-        <TouchableOpacity 
-          style={styles.loginButton} 
-          onPress={handleLogin}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.googleButton} onPress={() => Alert.alert('Info', 'Próximamente')}>
-          <Ionicons name="logo-google" size={24} color={currentTheme.text} />
-          <Text style={styles.googleButtonText}>Continuar con Google</Text>
-        </TouchableOpacity>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>¿No tienes cuenta? </Text>
-          <TouchableOpacity>
-            <Text style={styles.signupText}>Regístrate</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <TouchableOpacity 
+        style={styles.googleButton} 
+        onPress={handleGoogleLogin}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator color={currentTheme.text} />
+        ) : (
+          <>
+            <Ionicons name="logo-google" size={24} color={currentTheme.text} />
+            <Text style={styles.googleButtonText}>Continuar con Google</Text>
+          </>
+        )}
+      </TouchableOpacity>
     </View>
   );
 }
+

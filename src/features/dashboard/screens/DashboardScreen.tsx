@@ -340,11 +340,11 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Hola,</Text>
-            <Text style={styles.username}>{user?.name || 'Invitado'}</Text>
+            <Text style={styles.username}>{user?.email?.split('@')[0] || 'Invitado'}</Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
             <Image 
-              source={{ uri: user?.avatar || 'https://ui-avatars.com/api/?name=Invitado' }} 
+              source={{ uri: user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado' }} 
               style={styles.avatar} 
             />
           </TouchableOpacity>
@@ -410,8 +410,21 @@ export default function DashboardScreen() {
             style={styles.carouselCard}
             onPress={() => navigation.navigate('Goals')}
           >
-            <View style={[styles.carouselIcon, { backgroundColor: '#FFC107' }]}>
-              <Ionicons name="rocket" size={20} color="#FFF" />
+            <View style={[styles.carouselIcon, { backgroundColor: '#FF9800' }]}>
+              <Ionicons name="flag" size={20} color="#FFF" />
+            </View>
+            <View>
+              <Text style={styles.carouselTitle}>Metas</Text>
+              <Text style={styles.carouselSubtitle}>Ahorra para algo</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.carouselCard}
+            onPress={() => navigation.navigate('Investments')}
+          >
+            <View style={[styles.carouselIcon, { backgroundColor: '#4CAF50' }]}>
+              <Ionicons name="trending-up" size={20} color="#FFF" />
             </View>
             <View>
               <Text style={styles.carouselTitle}>Inversiones</Text>

@@ -1,9 +1,6 @@
-export interface User {
-  id: string;
-  username: string;
-  name: string;
-  avatar?: string;
-}
+import { User } from '@supabase/supabase-js';
+
+export type { User };
 
 export interface AuthState {
   user: User | null;

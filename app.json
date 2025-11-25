@@ -1,30 +1,58 @@
 {
   "expo": {
-    "name": "trackerito_google",
-    "slug": "trackerito_google",
+    "name": "Trackerito",
+    "slug": "trackerito",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#6366F1"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.flore.trackerito",
+      "associatedDomains": [
+        "applinks:trackerito.com"
+      ]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#6366F1"
       },
+      "package": "com.flore.trackerito",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "trackerito",
+              "host": "auth",
+              "pathPrefix": "/callback"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "scheme": "trackerito",
+    "extra": {
+      "eas": {
+        "projectId": "4cbdcc03-00f3-474d-a6d5-1bc6b15b1a39"
+      }
     }
   }
 }

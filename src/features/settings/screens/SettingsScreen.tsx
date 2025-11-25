@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -9,7 +9,7 @@ type SettingsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList
 
 export default function SettingsScreen() {
   const navigation = useNavigation<SettingsScreenNavigationProp>();
-  const { preferences, toggleTheme } = useStore();
+  const { preferences, toggleTheme, isDemoMode, toggleDemoMode } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
 
@@ -63,6 +63,24 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Datos</Text>
+        <View style={styles.row}>
+          <View>
+            <Text style={styles.label}>Modo Demostración</Text>
+            <Text style={{ fontSize: 12, color: currentTheme.textSecondary }}>
+              {isDemoMode ? 'Usando datos simulados' : 'Usando datos reales'}
+            </Text>
+          </View>
+          <Switch
+            value={isDemoMode}
+            onValueChange={async () => await toggleDemoMode()}
+            trackColor={{ false: '#767577', true: currentTheme.primary }}
+            thumbColor={isDemoMode ? '#FFFFFF' : '#f4f3f4'}
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>General</Text>
         <View style={styles.row}>
           <Text style={styles.label}>Moneda</Text>
@@ -74,6 +92,27 @@ export default function SettingsScreen() {
         >
           <Text style={styles.label}>Gestionar Categorías</Text>
           <Text style={{ color: currentTheme.primary }}>→</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Cuenta</Text>
+        <TouchableOpacity 
+          style={[styles.row, { paddingVertical: 12 }]} 
+          onPress={async () => {
+            console.log('Logout button pressed');
+            try {
+              const { signOut } = useStore.getState();
+              console.log('Calling signOut...');
+              await signOut();
+              console.log('SignOut completed');
+            } catch (error) {
+              console.error('Error during logout:', error);
+              Alert.alert('Error', 'Hubo un problema al cerrar sesión');
+            }
+          }}
+        >
+          <Text style={[styles.label, { color: currentTheme.error }]}>Cerrar Sesión</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -12,6 +12,7 @@ import BenefitsScreen from '../features/benefits/screens/BenefitsScreen';
 import SettingsScreen from '../features/settings/screens/SettingsScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
 import GoalsScreen from '../features/goals/screens/GoalsScreen';
+import InvestmentsScreen from '../features/investments/screens/InvestmentsScreen';
 import CategoriesScreen from '../features/settings/screens/CategoriesScreen';
 import { StatusBar } from 'expo-status-bar';
 
@@ -26,6 +27,7 @@ export type RootStackParamList = {
   FinancialEducation: undefined;
   Budgets: undefined;
   Benefits: undefined;
+  Investments: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -34,6 +36,51 @@ export default function AppNavigator() {
   const { preferences, isAuthenticated } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+
+  // Set up Supabase auth listener
+  React.useEffect(() => {
+    const { supabase } = require('../services/supabase');
+    
+    console.log('Setting up Supabase auth listener...');
+    
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
+      console.log('Initial session check:', session ? 'Session exists' : 'No session');
+      if (session) {
+        console.log('User from initial session:', session.user?.email);
+        useStore.setState({ 
+          isAuthenticated: true, 
+          user: session.user 
+        });
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event: any, session: any) => {
+        console.log('Auth state change event:', event);
+        console.log('Session:', session ? 'Session exists' : 'No session');
+        if (session) {
+          console.log('User email:', session.user?.email);
+          useStore.setState({ 
+            isAuthenticated: true, 
+            user: session.user 
+          });
+        } else {
+          console.log('No session, logging out');
+          useStore.setState({ 
+            isAuthenticated: false, 
+            user: null 
+          });
+        }
+      }
+    );
+
+    return () => {
+      console.log('Cleaning up auth listener');
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const navigationTheme = isDark ? DarkTheme : DefaultTheme;
 
@@ -92,6 +139,11 @@ export default function AppNavigator() {
               name="Benefits" 
               component={BenefitsScreen} 
               options={{ title: 'Beneficios' }}
+            />
+            <Stack.Screen 
+              name="Investments" 
+              component={InvestmentsScreen} 
+              options={{ title: 'Inversiones' }}
             />
             <Stack.Screen 
               name="Categories" 
