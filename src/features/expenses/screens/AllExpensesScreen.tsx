@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,7 +28,10 @@ import { es } from 'date-fns/locale';
 
 type FilterPeriod = 'all' | 'week' | 'month' | 'custom';
 
+type AllExpensesScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AllExpenses'>;
+
 export default function AllExpensesScreen() {
+  const navigation = useNavigation<AllExpensesScreenNavigationProp>();
   const { expenses, categories, preferences, removeExpense } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
@@ -39,13 +45,15 @@ export default function AllExpensesScreen() {
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
 
+  const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
+
   // Filter expenses based on selected filters
   const filteredExpenses = useMemo(() => {
     let filtered = [...expenses];
 
     // Filter by category
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(e => e.categoryId === selectedCategory);
+      filtered = filtered.filter(e => e.categoryIds && e.categoryIds.includes(selectedCategory));
     }
 
     // Filter by period
@@ -69,9 +77,11 @@ export default function AllExpensesScreen() {
     // Filter by search query
     if (searchQuery.trim()) {
       filtered = filtered.filter(e => {
-        const category = categories.find(c => c.id === e.categoryId);
+        const expenseCategories = categories.filter(c => e.categoryIds?.includes(c.id));
+        const categoryNames = expenseCategories.map(c => c.name).join(' ').toLowerCase();
+        
         return e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-               (category?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+               categoryNames.includes(searchQuery.toLowerCase());
       });
     }
 
@@ -592,15 +602,27 @@ export default function AllExpensesScreen() {
           </View>
         ) : (
           filteredExpenses.map((expense) => {
-            const category = categories.find(c => c.id === expense.categoryId) || {
+            const primaryCatId = expense.categoryIds?.[0];
+            const category = categories.find(c => c.id === primaryCatId) || {
               name: 'Desconocido',
               icon: 'pricetag',
               color: currentTheme.textSecondary,
             };
+            
+            // Get all category names
+            const categoryNames = expense.categoryIds
+              ?.map(id => categories.find(c => c.id === id)?.name)
+              .filter(Boolean)
+              .join(', ');
+
+            const isExpanded = expandedExpenseId === expense.id;
+
             return (
-              <View 
+              <TouchableOpacity 
                 key={expense.id} 
-                style={styles.expenseItem}
+                style={[styles.expenseItem, isExpanded && { borderColor: currentTheme.primary, borderWidth: 1 }]}
+                activeOpacity={0.9}
+                onPress={() => setExpandedExpenseId(isExpanded ? null : expense.id)}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                   <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
@@ -609,48 +631,49 @@ export default function AllExpensesScreen() {
                   <View style={styles.expenseDetails}>
                     <Text style={styles.expenseDescription}>{expense.description}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={styles.expenseCategory}>{category.name}</Text>
+                      <Text style={[styles.expenseCategory, { flex: 1, marginRight: 8 }]} numberOfLines={1}>
+                        {categoryNames || category.name}
+                      </Text>
                       <Text style={[styles.expenseCategory, { marginHorizontal: 4 }]}>•</Text>
                       <Text style={styles.expenseCategory}>{format(parseISO(expense.date), 'd MMM', { locale: es })}</Text>
                     </View>
                   </View>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-                    <TouchableOpacity 
-                      onPress={() => {
-                        console.log('Edit button pressed for expense:', expense.id);
-                        Alert.alert('Editar', 'Función de editar próximamente');
-                      }}
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      style={{ 
-                        padding: 8, 
-                        backgroundColor: currentTheme.primary + '20', 
-                        borderRadius: 6 
-                      }}
-                    >
-                      <Ionicons name="pencil" size={16} color={currentTheme.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      onPress={() => {
-                        console.log('Delete button pressed for expense:', expense.id);
-                        handleDelete(expense.id);
-                      }}
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      style={{ 
-                        padding: 8, 
-                        backgroundColor: currentTheme.error + '20', 
-                        borderRadius: 6 
-                      }}
-                    >
-                      <Ionicons name="trash" size={16} color={currentTheme.error} />
-                    </TouchableOpacity>
+                  <View style={{ alignItems: 'flex-end', justifyContent: 'center', height: 40 }}>
+                    {isExpanded ? (
+                      <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+                        <TouchableOpacity 
+                          onPress={() => {
+                            console.log('Edit button pressed for expense:', expense.id);
+                            navigation.navigate('AddExpense', { expenseId: expense.id });
+                          }}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="pencil" size={16} color={currentTheme.primary} />
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                          onPress={() => {
+                            console.log('Delete button pressed for expense:', expense.id);
+                            handleDelete(expense.id);
+                          }}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="trash" size={16} color={currentTheme.error} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={() => setExpandedExpenseId(null)}>
+                           <Ionicons name="chevron-up" size={16} color={currentTheme.textSecondary} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
+                        <Ionicons name="chevron-down" size={16} color={currentTheme.textSecondary} style={{ marginTop: 4 }} />
+                      </View>
+                    )}
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}

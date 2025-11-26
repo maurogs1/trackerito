@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TouchableWithoutFeedback, Platform } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
-import { useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyInput, parseCurrencyInput } from '../../../shared/utils/currency';
 import { FinancialType } from '../types';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 type AddExpenseScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddExpense'>;
+type AddExpenseScreenRouteProp = RouteProp<RootStackParamList, 'AddExpense'>;
 
 const ICONS = [
   'cart', 'game-controller', 'car', 'medical', 'pricetag', 'restaurant', 'cafe', 'fitness', 
@@ -21,16 +25,24 @@ const COLORS = ['#FF5722', '#9C27B0', '#2196F3', '#F44336', '#607D8B', '#4CAF50'
 
 export default function AddExpenseScreen() {
   const navigation = useNavigation<AddExpenseScreenNavigationProp>();
-  const { addExpense, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories } = useStore();
+  const route = useRoute<AddExpenseScreenRouteProp>();
+  const { addExpense, updateExpense, expenses, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
-  console.log("allCategories",allCategories);
+  
+  const expenseId = route.params?.expenseId;
+  const isEditing = !!expenseId;
 
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isAmountFocused, setIsAmountFocused] = useState(false);
+  const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
   const [financialType, setFinancialType] = useState<FinancialType>('unclassified');
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   // Quick Add Modal State
   const [modalVisible, setModalVisible] = useState(false);
@@ -41,7 +53,7 @@ export default function AddExpenseScreen() {
   // UI State
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showAllIcons, setShowAllIcons] = useState(false);
-  const INITIAL_CATEGORY_COUNT = 9;
+  const INITIAL_CATEGORY_COUNT = 6;
   const INITIAL_ICON_COUNT = 15;
 
   const categories = getMostUsedCategories();
@@ -54,20 +66,43 @@ export default function AddExpenseScreen() {
   }, []);
 
   useEffect(() => {
-    if (categories.length > 0 && !selectedCategoryId) {
-      const firstCat = categories[0];
-      setSelectedCategoryId(firstCat.id);
-      if (firstCat.financialType) {
-        setFinancialType(firstCat.financialType);
+    if (isEditing && expenseId) {
+      const expense = expenses.find(e => e.id === expenseId);
+      if (expense) {
+        setAmount(expense.amount.toString());
+        setDescription(expense.description);
+        setSelectedCategoryIds(expense.categoryIds || []);
+        setFinancialType(expense.financialType || 'unclassified');
+
+        setFinancialType(expense.financialType || 'unclassified');
+        setDate(new Date(expense.date));
+        navigation.setOptions({ title: 'Editar Gasto' });
       }
     }
-  }, [categories]);
+  }, [expenseId, isEditing]); // Removed 'expenses' and 'categories' to prevent re-run on store updates
+
+  useEffect(() => {
+    if (!isEditing && categories.length > 0 && selectedCategoryIds.length === 0) {
+      // Optional: Select the first one by default, or leave empty
+      // setSelectedCategoryIds([categories[0].id]);
+    }
+  }, [categories, isEditing, selectedCategoryIds.length]);
 
   // Update financial type when category changes
   const handleCategorySelect = (categoryId: string) => {
-    setSelectedCategoryId(categoryId);
+    setSelectedCategoryIds(prev => {
+      if (prev.includes(categoryId)) {
+        return prev.filter(id => id !== categoryId);
+      } else {
+        return [...prev, categoryId];
+      }
+    });
+    
+    // Optional: Update financial type based on last selected?
+    // Or just leave it manual since multiple categories might have conflicting types.
     const category = allCategories.find(c => c.id === categoryId);
-    if (category?.financialType) {
+    if (category?.financialType && !selectedCategoryIds.includes(categoryId)) {
+       // Only update if we are adding a category
       setFinancialType(category.financialType);
     }
   };
@@ -75,6 +110,24 @@ export default function AddExpenseScreen() {
   const handleAmountChange = (text: string) => {
     const formatted = formatCurrencyInput(text);
     setAmount(formatted);
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS !== 'web') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
+
+  const handleWebDateChange = (event: any) => {
+    const dateString = event.target.value;
+    if (dateString) {
+      // dateString is YYYY-MM-DD
+      const [year, month, day] = dateString.split('-').map(Number);
+      setDate(new Date(year, month - 1, day));
+    }
   };
 
   const handleSave = async () => {
@@ -89,13 +142,23 @@ export default function AddExpenseScreen() {
       return;
     }
 
-    await addExpense({
-      amount: numAmount,
-      description,
-      categoryId: selectedCategoryId,
-      date: new Date().toISOString(),
-      financialType: financialType,
-    });
+    if (isEditing && expenseId) {
+      await updateExpense(expenseId, {
+        amount: numAmount,
+        description,
+        categoryIds: selectedCategoryIds,
+        date: date.toISOString(),
+        financialType: financialType,
+      });
+    } else {
+      await addExpense({
+        amount: numAmount,
+        description,
+        categoryIds: selectedCategoryIds,
+        date: date.toISOString(),
+        financialType: financialType,
+      });
+    }
 
     navigation.goBack();
   };
@@ -130,6 +193,27 @@ export default function AddExpenseScreen() {
       marginBottom: 8,
       marginTop: 16,
     },
+    inputContainer: {
+      backgroundColor: currentTheme.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+      height: 50, // Fixed height for consistency
+      justifyContent: 'center',
+    },
+    inputFocused: {
+      borderColor: currentTheme.primary,
+    },
+    inputField: {
+      color: currentTheme.text,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      height: '100%',
+      // @ts-ignore
+      outlineStyle: 'none',
+      textAlignVertical: 'center', // For Android Text centering
+      
+    } as any,
     input: {
       backgroundColor: currentTheme.card,
       color: currentTheme.text,
@@ -304,24 +388,76 @@ export default function AddExpenseScreen() {
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container}>
         <Text style={styles.label}>Monto</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="0,00"
-          placeholderTextColor={currentTheme.textSecondary}
-          keyboardType="numeric"
-          value={amount}
-          onChangeText={handleAmountChange}
-          autoFocus
-        />
+        <View style={[styles.inputContainer, isAmountFocused && styles.inputFocused]}>
+          <TextInput
+            style={styles.inputField}
+            placeholder="0,00"
+            placeholderTextColor={currentTheme.textSecondary}
+            keyboardType="numeric"
+            value={amount}
+            onChangeText={handleAmountChange}
+            onFocus={() => setIsAmountFocused(true)}
+            onBlur={() => setIsAmountFocused(false)}
+            autoFocus
+          />
+        </View>
 
         <Text style={styles.label}>Descripción</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="¿Qué compraste?"
-          placeholderTextColor={currentTheme.textSecondary}
-          value={description}
-          onChangeText={setDescription}
-        />
+        <View style={[styles.inputContainer, isDescriptionFocused && styles.inputFocused]}>
+          <TextInput
+            style={styles.inputField}
+            placeholder="¿Qué compraste?"
+            placeholderTextColor={currentTheme.textSecondary}
+            value={description}
+            onChangeText={setDescription}
+            onFocus={() => setIsDescriptionFocused(true)}
+            onBlur={() => setIsDescriptionFocused(false)}
+          />
+        </View>
+
+        <Text style={styles.label}>Fecha</Text>
+        <View style={styles.inputContainer}>
+          {Platform.OS === 'web' ? (
+            <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 16 }}>
+              {/* @ts-ignore - React Native Web specific */}
+              {React.createElement('input', {
+                type: 'date',
+                value: format(date, 'yyyy-MM-dd'),
+                onChange: handleWebDateChange,
+                style: {
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  color: currentTheme.text,
+                  fontSize: '16px',
+                  fontFamily: 'System',
+                  width: '100%',
+                  height: '100%',
+                  outline: 'none'
+                }
+              })}
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: '100%' }}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={20} color={currentTheme.textSecondary} style={{ marginRight: 10 }} />
+              <Text style={{ color: currentTheme.text, fontSize: 16 }}>
+                {format(date, 'dd/MM/yyyy', { locale: es })}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {Platform.OS !== 'web' && showDatePicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleDateChange}
+            maximumDate={new Date()}
+          />
+        )}
 
         <Text style={styles.label}>Clasificación Financiera</Text>
         <View style={styles.typeContainer}>
@@ -346,20 +482,46 @@ export default function AddExpenseScreen() {
           })}
         </View>
 
-        <Text style={styles.label}>Categoría</Text>
-        
-        {showSearch && (
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color={currentTheme.textSecondary} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
+          <Text style={{ fontSize: 16, color: currentTheme.textSecondary }}>Categoría</Text>
+          <View style={{ 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            backgroundColor: currentTheme.card, 
+            borderRadius: 8, 
+            paddingHorizontal: 8,
+            borderWidth: 1,
+            borderColor: isSearchFocused ? currentTheme.primary : currentTheme.border,
+            flex: 1,
+            marginLeft: 12,
+            height: 36
+          }}>
+            <Ionicons name="search" size={16} color={isSearchFocused ? currentTheme.primary : currentTheme.textSecondary} />
             <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar categoría..."
+              style={{ 
+                flex: 1, 
+                marginLeft: 8, 
+                color: currentTheme.text, 
+                paddingVertical: 0, 
+                fontSize: 14,
+                height: '100%',
+                // @ts-ignore
+                outlineStyle: 'none'
+              } as any}
+              placeholder="Buscar..."
               placeholderTextColor={currentTheme.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
             />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={16} color={currentTheme.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
-        )}
+        </View>
 
         <View style={styles.categoryContainer}>
           {filteredCategories.slice(0, showAllCategories ? undefined : INITIAL_CATEGORY_COUNT).map((cat) => (
@@ -367,19 +529,19 @@ export default function AddExpenseScreen() {
               key={cat.id}
               style={[
                 styles.categoryChip,
-                selectedCategoryId === cat.id && styles.categoryChipSelected,
+                selectedCategoryIds.includes(cat.id) && styles.categoryChipSelected,
               ]}
               onPress={() => handleCategorySelect(cat.id)}
             >
               <Ionicons 
                 name={cat.icon as any} 
                 size={16} 
-                color={selectedCategoryId === cat.id ? '#FFFFFF' : cat.color} 
+                color={selectedCategoryIds.includes(cat.id) ? '#FFFFFF' : cat.color} 
               />
               <Text
                 style={[
                   styles.categoryText,
-                  selectedCategoryId === cat.id && styles.categoryTextSelected,
+                  selectedCategoryIds.includes(cat.id) && styles.categoryTextSelected,
                 ]}
               >
                 {cat.name}
@@ -408,7 +570,7 @@ export default function AddExpenseScreen() {
         </View>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Guardar Gasto</Text>
+          <Text style={styles.saveButtonText}>{isEditing ? 'Actualizar Gasto' : 'Guardar Gasto'}</Text>
         </TouchableOpacity>
       </ScrollView>
 

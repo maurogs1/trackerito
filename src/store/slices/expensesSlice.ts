@@ -8,6 +8,7 @@ export interface ExpensesSlice {
   
   loadExpenses: () => Promise<void>;
   addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<void>;
+  updateExpense: (id: string, expense: Partial<Omit<Expense, 'id' | 'createdAt'>>) => Promise<void>;
   removeExpense: (id: string) => Promise<void>;
   resetToMockData: () => void;
   getSummary: () => ExpenseSummary;
@@ -15,13 +16,13 @@ export interface ExpensesSlice {
 
 // Mock data generator
 const getMockExpenses = (): Expense[] => [
-  { id: '1', amount: 15000, categoryId: '1', description: 'Compra semanal', date: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: '2', amount: 4500, categoryId: '2', description: 'Cine con amigos', date: new Date(Date.now() - 86400000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '3', amount: 3200, categoryId: '3', description: 'Uber al trabajo', date: new Date(Date.now() - 172800000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '4', amount: 12000, categoryId: '4', description: 'Farmacia', date: new Date(Date.now() - 259200000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '5', amount: 8500, categoryId: '5', description: 'Cena romántica', date: new Date(Date.now() - 345600000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '6', amount: 60000, categoryId: '6', description: 'Alquiler', date: startOfMonth(new Date()).toISOString(), createdAt: new Date().toISOString() },
-  { id: '7', amount: 2500, categoryId: '7', description: 'Starbucks', date: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: '1', amount: 15000, categoryIds: ['1'], description: 'Compra semanal', date: new Date().toISOString(), createdAt: new Date().toISOString() },
+  { id: '2', amount: 4500, categoryIds: ['2'], description: 'Cine con amigos', date: new Date(Date.now() - 86400000).toISOString(), createdAt: new Date().toISOString() },
+  { id: '3', amount: 3200, categoryIds: ['3'], description: 'Uber al trabajo', date: new Date(Date.now() - 172800000).toISOString(), createdAt: new Date().toISOString() },
+  { id: '4', amount: 12000, categoryIds: ['4'], description: 'Farmacia', date: new Date(Date.now() - 259200000).toISOString(), createdAt: new Date().toISOString() },
+  { id: '5', amount: 8500, categoryIds: ['5'], description: 'Cena romántica', date: new Date(Date.now() - 345600000).toISOString(), createdAt: new Date().toISOString() },
+  { id: '6', amount: 60000, categoryIds: ['6'], description: 'Alquiler', date: startOfMonth(new Date()).toISOString(), createdAt: new Date().toISOString() },
+  { id: '7', amount: 2500, categoryIds: ['7'], description: 'Starbucks', date: new Date().toISOString(), createdAt: new Date().toISOString() },
 ];
 
 export const createExpensesSlice: StateCreator<
@@ -45,7 +46,7 @@ export const createExpensesSlice: StateCreator<
         const { supabase } = await import('../../services/supabase');
         const { data, error } = await supabase
           .from('expenses')
-          .select('*')
+          .select('*, expense_categories(category_id)')
           .order('date', { ascending: false });
         
         if (error) {
@@ -55,7 +56,9 @@ export const createExpensesSlice: StateCreator<
           const loadedExpenses = (data || []).map((item: any) => ({
             ...item,
             amount: Number(item.amount),
-            categoryId: item.category_id || item.category // Fallback for migration
+            categoryIds: item.expense_categories 
+              ? item.expense_categories.map((ec: any) => ec.category_id)
+              : [] 
           }));
           set({ expenses: loadedExpenses, isLoading: false } as any);
         }
@@ -84,7 +87,7 @@ export const createExpensesSlice: StateCreator<
         set((state) => {
           const categories = (state as any).categories || [];
           const updatedCategories = categories.map((c: any) => 
-            c.id === expenseData.categoryId 
+            expenseData.categoryIds.includes(c.id)
               ? { ...c, usageCount: (c.usageCount || 0) + 1 } 
               : c
           );
@@ -113,7 +116,6 @@ export const createExpensesSlice: StateCreator<
         const expenseToInsert = {
           // No id field - Supabase will generate it
           amount: expenseData.amount,
-          category_id: expenseData.categoryId,
           description: expenseData.description,
           date: expenseData.date,
           financial_type: expenseData.financialType || 'unclassified',
@@ -132,13 +134,53 @@ export const createExpensesSlice: StateCreator<
           throw error;
         }
         
-        console.log('Expense saved successfully:', data);
+        const newExpenseId = data[0].id;
+        console.log('Expense saved successfully, ID:', newExpenseId);
+
+        // Insert into junction table
+        if (expenseData.categoryIds && expenseData.categoryIds.length > 0) {
+          const junctionData = expenseData.categoryIds.map(catId => ({
+            expense_id: newExpenseId,
+            category_id: catId
+          }));
+
+          const { error: junctionError } = await supabase
+            .from('expense_categories')
+            .insert(junctionData);
+
+          if (junctionError) {
+            console.error('Error linking categories:', junctionError);
+            // We might want to delete the expense if this fails, but for now let's keep it
+          }
+        }
+
+        // Increment usage count for ALL selected categories
+        try {
+          // We do this one by one or we could write a stored procedure. 
+          // For simplicity/speed in this context, loop is fine for small N.
+          for (const catId of expenseData.categoryIds) {
+             const { data: catData, error: catError } = await supabase
+              .from('categories')
+              .select('usage_count')
+              .eq('id', catId)
+              .single();
+
+            if (!catError && catData) {
+              await supabase
+                .from('categories')
+                .update({ usage_count: (catData.usage_count || 0) + 1 })
+                .eq('id', catId);
+            }
+          }
+        } catch (err) {
+          console.error('Error incrementing usage count:', err);
+        }
         
         // Use the expense returned by Supabase (includes generated ID)
         const savedExpense: Expense = {
           id: data[0].id,
           amount: Number(data[0].amount),
-          categoryId: data[0].category_id,
+          categoryIds: expenseData.categoryIds,
           description: data[0].description,
           date: data[0].date,
           createdAt: data[0].created_at,
@@ -148,7 +190,7 @@ export const createExpensesSlice: StateCreator<
         set((state) => {
           const categories = (state as any).categories || [];
           const updatedCategories = categories.map((c: any) => 
-            c.id === expenseData.categoryId 
+            expenseData.categoryIds.includes(c.id)
               ? { ...c, usageCount: (c.usageCount || 0) + 1 } 
               : c
           );
@@ -162,6 +204,77 @@ export const createExpensesSlice: StateCreator<
       }
     } catch (error) {
       set({ error: 'Failed to add expense', isLoading: false } as any);
+    }
+  },
+
+
+
+  updateExpense: async (id, expenseData) => {
+    set({ isLoading: true, error: null } as any);
+    try {
+      const isDemoMode = (get() as any).isDemoMode;
+      
+      if (isDemoMode) {
+        // Update mock data
+        set((state) => ({
+          expenses: state.expenses.map(e => 
+            e.id === id ? { ...e, ...expenseData } : e
+          ),
+          isLoading: false
+        } as any));
+      } else {
+        const { supabase } = await import('../../services/supabase');
+        
+        // 1. Update expenses table
+        const updateData: any = {};
+        if (expenseData.amount !== undefined) updateData.amount = expenseData.amount;
+        if (expenseData.description !== undefined) updateData.description = expenseData.description;
+        if (expenseData.date !== undefined) updateData.date = expenseData.date;
+        if (expenseData.financialType !== undefined) updateData.financial_type = expenseData.financialType;
+
+        const { error: updateError } = await supabase
+          .from('expenses')
+          .update(updateData)
+          .eq('id', id);
+
+        if (updateError) throw updateError;
+
+        // 2. Update categories if provided
+        if (expenseData.categoryIds) {
+          // Delete existing links
+          const { error: deleteError } = await supabase
+            .from('expense_categories')
+            .delete()
+            .eq('expense_id', id);
+            
+          if (deleteError) throw deleteError;
+
+          // Insert new links
+          if (expenseData.categoryIds.length > 0) {
+             const junctionData = expenseData.categoryIds.map(catId => ({
+              expense_id: id,
+              category_id: catId
+            }));
+
+            const { error: insertError } = await supabase
+              .from('expense_categories')
+              .insert(junctionData);
+              
+            if (insertError) throw insertError;
+          }
+        }
+
+        // 3. Update local state
+        set((state) => ({
+          expenses: state.expenses.map(e => 
+            e.id === id ? { ...e, ...expenseData } : e
+          ),
+          isLoading: false
+        } as any));
+      }
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      set({ error: 'Failed to update expense', isLoading: false } as any);
     }
   },
 

@@ -19,7 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;
-  AddExpense: undefined;
+  AddExpense: { expenseId?: string } | undefined;
   Settings: undefined;
   Goals: undefined;
   Categories: undefined;

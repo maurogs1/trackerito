@@ -12,7 +12,7 @@ export interface Category {
 export interface Expense {
   id: string;
   amount: number;
-  categoryId: string; // Foreign Key to Categories table
+  categoryIds: string[]; // Foreign Key to Categories table
   description: string;
   date: string; // ISO string
   createdAt: string;

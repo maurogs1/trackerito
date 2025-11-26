@@ -32,7 +32,12 @@ export default function DashboardScreen() {
     
     expenses.forEach(e => {
       if (new Date(e.date).getMonth() === currentMonth) {
-         categoryTotals[e.categoryId] = (categoryTotals[e.categoryId] || 0) + e.amount;
+         // Add amount to ALL categories of this expense
+         if (e.categoryIds && e.categoryIds.length > 0) {
+           e.categoryIds.forEach(catId => {
+             categoryTotals[catId] = (categoryTotals[catId] || 0) + e.amount;
+           });
+         }
       }
     });
     
@@ -521,7 +526,15 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
         {expenses.slice(0, 5).map((expense) => {
-          const category = categories.find(c => c.id === expense.categoryId) || { name: 'Desconocido', icon: 'pricetag', color: currentTheme.textSecondary };
+          const primaryCatId = expense.categoryIds?.[0];
+          const category = categories.find(c => c.id === primaryCatId) || { name: 'Desconocido', icon: 'pricetag', color: currentTheme.textSecondary };
+          
+          // Get all category names
+          const categoryNames = expense.categoryIds
+            ?.map(id => categories.find(c => c.id === id)?.name)
+            .filter(Boolean)
+            .join(', ');
+
           return (
             <View key={expense.id} style={styles.expenseItem}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -530,7 +543,9 @@ export default function DashboardScreen() {
                 </View>
                 <View>
                   <Text style={styles.expenseDescription}>{expense.description}</Text>
-                  <Text style={styles.expenseCategory}>{category.name}</Text>
+                  <Text style={styles.expenseCategory} numberOfLines={1}>
+                    {categoryNames || category.name}
+                  </Text>
                 </View>
               </View>
               <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>

@@ -115,7 +115,7 @@ export const createBudgetsSlice: StateCreator<BudgetsSlice> = (set, get) => ({
 
     const now = new Date();
     const spent = expenses
-      .filter((e: any) => e.categoryId === categoryId && isSameMonth(new Date(e.date), now))
+      .filter((e: any) => e.categoryIds && e.categoryIds.includes(categoryId) && isSameMonth(new Date(e.date), now))
       .reduce((sum: number, e: any) => sum + e.amount, 0);
 
     return {
