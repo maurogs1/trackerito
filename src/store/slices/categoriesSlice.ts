@@ -5,7 +5,7 @@ export interface CategoriesSlice {
   categories: Category[];
   
   loadCategories: () => Promise<void>;
-  addCategory: (category: Omit<Category, 'id'>) => Promise<void>;
+  addCategory: (category: Omit<Category, 'id'>) => Promise<Category | undefined>;
   updateCategory: (category: Category) => Promise<void>;
   removeCategory: (id: string) => Promise<void>;
   resetToMockData: () => void;
@@ -122,6 +122,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         financialType: 'unclassified',
       };
       set((state) => ({ categories: [...state.categories, newCategory] }));
+      return newCategory;
     } else {
       // Real mode - Supabase generates ID
       try {
@@ -149,7 +150,9 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         }
         
         // Use the category returned by Supabase
-        set((state) => ({ categories: [...state.categories, data[0]] }));
+        const newCategory = data[0];
+        set((state) => ({ categories: [...state.categories, newCategory] }));
+        return newCategory;
       } catch (error) {
         console.error('Error in addCategory:', error);
       }

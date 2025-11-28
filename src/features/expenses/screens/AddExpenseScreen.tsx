@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TouchableWithoutFeedback, Platform } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
@@ -56,9 +56,21 @@ export default function AddExpenseScreen() {
   const INITIAL_CATEGORY_COUNT = 6;
   const INITIAL_ICON_COUNT = 15;
 
+  // Track newly added categories to show them at the top
+  const [newlyAddedCategoryIds, setNewlyAddedCategoryIds] = useState<string[]>([]);
+
   const categories = getMostUsedCategories();
-  const filteredCategories = categories.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const showSearch = categories.length > 10;
+  
+  // Sort categories: newly added first, then the rest
+  const sortedCategories = useMemo(() => {
+    const newCats = allCategories.filter((c: any) => newlyAddedCategoryIds.includes(c.id));
+    // Filter out the new ones from the standard list to avoid duplicates if they appear there
+    const standardCats = categories.filter((c: any) => !newlyAddedCategoryIds.includes(c.id));
+    return [...newCats, ...standardCats];
+  }, [categories, allCategories, newlyAddedCategoryIds]);
+
+  const filteredCategories = sortedCategories.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const showSearch = sortedCategories.length > 10;
 
   useEffect(() => {
     // Ensure we have default categories if the list is empty or small
@@ -73,8 +85,6 @@ export default function AddExpenseScreen() {
         setDescription(expense.description);
         setSelectedCategoryIds(expense.categoryIds || []);
         setFinancialType(expense.financialType || 'unclassified');
-
-        setFinancialType(expense.financialType || 'unclassified');
         setDate(new Date(expense.date));
         navigation.setOptions({ title: 'Editar Gasto' });
       }
@@ -82,11 +92,11 @@ export default function AddExpenseScreen() {
   }, [expenseId, isEditing]); // Removed 'expenses' and 'categories' to prevent re-run on store updates
 
   useEffect(() => {
-    if (!isEditing && categories.length > 0 && selectedCategoryIds.length === 0) {
+    if (!isEditing && sortedCategories.length > 0 && selectedCategoryIds.length === 0) {
       // Optional: Select the first one by default, or leave empty
       // setSelectedCategoryIds([categories[0].id]);
     }
-  }, [categories, isEditing, selectedCategoryIds.length]);
+  }, [sortedCategories, isEditing, selectedCategoryIds.length]);
 
   // Update financial type when category changes
   const handleCategorySelect = (categoryId: string) => {
@@ -163,18 +173,19 @@ export default function AddExpenseScreen() {
     navigation.goBack();
   };
 
-  const handleQuickAddCategory = () => {
+  const handleQuickAddCategory = async () => {
     if (newCategoryName) {
-      addCategory({
+      const newCategory = await addCategory({
         name: newCategoryName,
         icon: newCategoryIcon,
         color: newCategoryColor,
       });
-      // We can't easily set the selected ID here because addCategory is async and void in the store interface
-      // Ideally addCategory should return the new category or ID.
-      // For now, we rely on the store update to trigger a re-render or effect if needed, 
-      // but since we don't have the ID immediately, we might need to find it by name or wait.
-      // However, for UX, let's just close the modal. The user can select it from the list.
+      
+      if (newCategory) {
+        setNewlyAddedCategoryIds(prev => [newCategory.id, ...prev]);
+        setSelectedCategoryIds(prev => [...prev, newCategory.id]);
+      }
+
       setModalVisible(false);
       setNewCategoryName('');
       setNewCategoryIcon(ICONS[0]);
@@ -209,8 +220,11 @@ export default function AddExpenseScreen() {
       paddingHorizontal: 16,
       fontSize: 16,
       height: '100%',
-      // @ts-ignore
-      outlineStyle: 'none',
+      ...Platform.select({
+        web: {
+          outlineStyle: 'none',
+        }
+      }),
       textAlignVertical: 'center', // For Android Text centering
       
     } as any,
@@ -505,8 +519,11 @@ export default function AddExpenseScreen() {
                 paddingVertical: 0, 
                 fontSize: 14,
                 height: '100%',
-                // @ts-ignore
-                outlineStyle: 'none'
+                ...Platform.select({
+                  web: {
+                    outlineStyle: 'none'
+                  }
+                })
               } as any}
               placeholder="Buscar..."
               placeholderTextColor={currentTheme.textSecondary}
@@ -524,7 +541,7 @@ export default function AddExpenseScreen() {
         </View>
 
         <View style={styles.categoryContainer}>
-          {filteredCategories.slice(0, showAllCategories ? undefined : INITIAL_CATEGORY_COUNT).map((cat) => (
+          {filteredCategories.slice(0, showAllCategories ? undefined : INITIAL_CATEGORY_COUNT).map((cat: any) => (
             <TouchableOpacity
               key={cat.id}
               style={[
