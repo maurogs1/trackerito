@@ -293,7 +293,6 @@ export default function DashboardScreen() {
       backgroundColor: currentTheme.card,
       padding: 12,
       borderRadius: 12,
-      borderLeftWidth: 4,
       borderWidth: 1,
       borderColor: currentTheme.border,
       shadowColor: '#000',
@@ -344,12 +343,17 @@ export default function DashboardScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hola,</Text>
-            <Text style={styles.username}>{user?.email?.split('@')[0] || 'Invitado'}</Text>
+            <Text style={styles.username}>
+              Hola, {(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Invitado').split(' ')[0]}
+            </Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
             <Image 
-              source={{ uri: user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado' }} 
+              source={{ 
+                uri: user?.user_metadata?.avatar_url || 
+                     user?.user_metadata?.picture || 
+                     (user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado') 
+              }} 
               style={styles.avatar} 
             />
           </TouchableOpacity>
