@@ -25,3 +25,31 @@ export interface ExpenseSummary {
   weeklyAverage: number;
   projectedBalance: number;
 }
+
+export type DebtStatus = 'active' | 'paid' | 'cancelled';
+
+export interface Debt {
+  id: string;
+  name: string;
+  totalAmount: number;
+  currentInstallment: number;
+  totalInstallments: number;
+  installmentAmount: number;
+  startDate: string; // ISO Date
+  status: DebtStatus;
+  items?: DebtItem[];
+}
+
+export interface DebtItem {
+  id: string;
+  debtId: string;
+  name: string;
+  amount: number;
+}
+
+export interface ExpenseDebt {
+  id: string;
+  expenseId: string;
+  debtId: string;
+  amount: number;
+}

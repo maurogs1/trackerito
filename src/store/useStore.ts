@@ -11,16 +11,18 @@ import { createCategoriesSlice, CategoriesSlice } from './slices/categoriesSlice
 import { createBudgetsSlice, BudgetsSlice } from './slices/budgetsSlice';
 import { createBenefitsSlice, BenefitsSlice } from './slices/benefitsSlice';
 import { createInvestmentsSlice, InvestmentsSlice } from './slices/investmentsSlice';
+import { createDebtsSlice, DebtsSlice } from './slices/debtsSlice';
 
 // Combined store type
-export type StoreState = AuthSlice & 
-  PreferencesSlice & 
-  ExpensesSlice & 
-  GoalsSlice & 
-  CategoriesSlice & 
-  BudgetsSlice & 
-  BenefitsSlice & 
-  InvestmentsSlice;
+export type StoreState = AuthSlice &
+  PreferencesSlice &
+  ExpensesSlice &
+  GoalsSlice &
+  CategoriesSlice &
+  BudgetsSlice &
+  BenefitsSlice &
+  InvestmentsSlice &
+  DebtsSlice;
 
 // Create the combined store
 export const useStore = create<StoreState>()(
@@ -34,12 +36,13 @@ export const useStore = create<StoreState>()(
       ...createBudgetsSlice(...a),
       ...createBenefitsSlice(...a),
       ...createInvestmentsSlice(...a),
+      ...createDebtsSlice(...a),
     }),
     {
       name: 'trackerito-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ 
-        user: state.user, 
+      partialize: (state) => ({
+        user: state.user,
         isAuthenticated: state.isAuthenticated,
         expenses: state.expenses,
         categories: state.categories,
@@ -47,6 +50,7 @@ export const useStore = create<StoreState>()(
         budgets: state.budgets,
         userBanks: state.userBanks,
         investments: state.investments,
+        debts: state.debts,
         preferences: state.preferences,
         isDemoMode: state.isDemoMode
       }),
@@ -57,9 +61,9 @@ export const useStore = create<StoreState>()(
 // Initialize data on store creation
 const initializeStore = async () => {
   const state = useStore.getState();
-  
+
   console.log('Initializing store with demo mode:', state.isDemoMode);
-  
+
   // Load data based on current mode
   await Promise.all([
     state.loadExpenses(),
@@ -67,8 +71,9 @@ const initializeStore = async () => {
     state.loadCategories(),
     state.loadBudgets(),
     state.loadInvestments(),
+    state.loadDebts(),
   ]);
-  
+
   console.log('Store initialized');
 };
 

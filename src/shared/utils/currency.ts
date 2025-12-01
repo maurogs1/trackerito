@@ -6,7 +6,7 @@ export const formatCurrencyInput = (value: string): string => {
 
   // Check if user is typing decimals
   const parts = cleanValue.split(',');
-  
+
   // Format integer part with dots
   const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
@@ -30,3 +30,5 @@ export const formatCurrencyDisplay = (amount: number): string => {
     maximumFractionDigits: 2,
   });
 };
+
+export const formatCurrency = formatCurrencyDisplay;

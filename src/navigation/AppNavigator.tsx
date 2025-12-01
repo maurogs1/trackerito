@@ -14,6 +14,9 @@ import LoginScreen from '../features/auth/screens/LoginScreen';
 import GoalsScreen from '../features/goals/screens/GoalsScreen';
 import InvestmentsScreen from '../features/investments/screens/InvestmentsScreen';
 import CategoriesScreen from '../features/settings/screens/CategoriesScreen';
+import ConfigureDebtScreen from '../features/debts/screens/ConfigureDebtScreen';
+import CreateDebtScreen from '../features/debts/screens/CreateDebtScreen';
+import DebtsScreen from '../features/debts/screens/DebtsScreen';
 import { StatusBar } from 'expo-status-bar';
 
 export type RootStackParamList = {
@@ -28,6 +31,9 @@ export type RootStackParamList = {
   Budgets: undefined;
   Benefits: undefined;
   Investments: undefined;
+  ConfigureDebt: { expenseId: string };
+  CreateDebt: { expenseId?: string };
+  Debts: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -40,17 +46,17 @@ export default function AppNavigator() {
   // Set up Supabase auth listener
   React.useEffect(() => {
     const { supabase } = require('../services/supabase');
-    
+
     console.log('Setting up Supabase auth listener...');
-    
+
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }: any) => {
       console.log('Initial session check:', session ? 'Session exists' : 'No session');
       if (session) {
         console.log('User from initial session:', session.user?.email);
-        useStore.setState({ 
-          isAuthenticated: true, 
-          user: session.user 
+        useStore.setState({
+          isAuthenticated: true,
+          user: session.user
         });
       }
     });
@@ -62,15 +68,15 @@ export default function AppNavigator() {
         console.log('Session:', session ? 'Session exists' : 'No session');
         if (session) {
           console.log('User email:', session.user?.email);
-          useStore.setState({ 
-            isAuthenticated: true, 
-            user: session.user 
+          useStore.setState({
+            isAuthenticated: true,
+            user: session.user
           });
         } else {
           console.log('No session, logging out');
-          useStore.setState({ 
-            isAuthenticated: false, 
-            user: null 
+          useStore.setState({
+            isAuthenticated: false,
+            user: null
           });
         }
       }
@@ -103,62 +109,82 @@ export default function AppNavigator() {
         }}
       >
         {!isAuthenticated ? (
-          <Stack.Screen 
-            name="Login" 
-            component={LoginScreen} 
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
             options={{ headerShown: false }}
           />
         ) : (
           <>
-            <Stack.Screen 
-              name="Dashboard" 
-              component={DashboardScreen} 
+            <Stack.Screen
+              name="Dashboard"
+              component={DashboardScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="AddExpense" 
-              component={AddExpenseScreen} 
+            <Stack.Screen
+              name="AddExpense"
+              component={AddExpenseScreen}
               options={{ title: 'Agregar Gasto' }}
             />
-            <Stack.Screen 
-              name="Settings" 
-              component={SettingsScreen} 
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
               options={{ title: 'Configuración' }}
             />
-            <Stack.Screen 
-              name="Goals" 
-              component={GoalsScreen} 
+            <Stack.Screen
+              name="Goals"
+              component={GoalsScreen}
               options={{ title: 'Metas Financieras' }}
             />
-            <Stack.Screen 
-              name="Budgets" 
-              component={BudgetsScreen} 
+            <Stack.Screen
+              name="Budgets"
+              component={BudgetsScreen}
               options={{ title: 'Presupuestos' }}
             />
-            <Stack.Screen 
-              name="Benefits" 
-              component={BenefitsScreen} 
+            <Stack.Screen
+              name="Benefits"
+              component={BenefitsScreen}
               options={{ title: 'Beneficios' }}
             />
-            <Stack.Screen 
-              name="Investments" 
-              component={InvestmentsScreen} 
+            <Stack.Screen
+              name="Investments"
+              component={InvestmentsScreen}
               options={{ title: 'Inversiones' }}
             />
-            <Stack.Screen 
-              name="Categories" 
-              component={CategoriesScreen} 
+            <Stack.Screen
+              name="Categories"
+              component={CategoriesScreen}
               options={{ title: 'Categorías' }}
             />
-            <Stack.Screen 
-              name="AllExpenses" 
-              component={AllExpensesScreen} 
+            <Stack.Screen
+              name="AllExpenses"
+              component={AllExpensesScreen}
               options={{ title: 'Todos los Gastos' }}
             />
-            <Stack.Screen 
-              name="FinancialEducation" 
-              component={FinancialEducationScreen} 
+            <Stack.Screen
+              name="FinancialEducation"
+              component={FinancialEducationScreen}
               options={{ title: 'Educación Financiera' }}
+            />
+            <Stack.Screen
+              name="FinancialEducation"
+              component={FinancialEducationScreen}
+              options={{ title: 'Educación Financiera' }}
+            />
+            <Stack.Screen
+              name="ConfigureDebt"
+              component={ConfigureDebtScreen}
+              options={{ title: 'Configurar Deuda' }}
+            />
+            <Stack.Screen
+              name="CreateDebt"
+              component={CreateDebtScreen}
+              options={{ title: 'Nueva Deuda' }}
+            />
+            <Stack.Screen
+              name="Debts"
+              component={DebtsScreen}
+              options={{ title: 'Mis Deudas' }}
             />
           </>
         )}
