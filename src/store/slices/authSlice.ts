@@ -1,5 +1,6 @@
 import { StateCreator } from 'zustand';
 import { User } from '../../features/auth/types';
+import { getUserFriendlyMessage, logError } from '../../shared/utils/errorHandler';
 
 export interface AuthSlice {
   user: User | null;
@@ -27,25 +28,27 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
       // Implementation is handled in LoginScreen component
       // This action is just to set loading state if needed
     } catch (error) {
-      set({ error: 'Error al iniciar sesión', isLoading: false });
+      logError(error, 'signInWithGoogle');
+      const errorMessage = getUserFriendlyMessage(error, 'auth');
+      set({ error: errorMessage, isLoading: false });
     }
   },
 
   signOut: async () => {
-    console.log('signOut function called');
     set({ isLoading: true, error: null });
     try {
-      console.log('Importing supabase...');
       const { supabase } = await import('../../services/supabase');
-      console.log('Calling supabase.auth.signOut()...');
       const result = await supabase.auth.signOut();
-      console.log('Supabase signOut result:', result);
-      console.log('Updating store state...');
+      
+      if (result.error) {
+        throw result.error;
+      }
+      
       set({ isAuthenticated: false, user: null, isLoading: false });
-      console.log('Store state updated successfully');
     } catch (error) {
-      console.error('Error in signOut:', error);
-      set({ error: 'Error al cerrar sesión', isLoading: false });
+      logError(error, 'signOut');
+      const errorMessage = getUserFriendlyMessage(error, 'auth');
+      set({ error: errorMessage, isLoading: false });
     }
   },
 

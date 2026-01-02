@@ -40,6 +40,7 @@ export const createDebtsSlice: StateCreator<DebtsSlice> = (set, get) => ({
                 installmentAmount: d.installment_amount,
                 startDate: d.start_date,
                 status: d.status,
+                bankId: d.bank_id,
                 items: d.items?.map((i: any) => ({
                     id: i.id,
                     debtId: i.debt_id,
@@ -71,7 +72,8 @@ export const createDebtsSlice: StateCreator<DebtsSlice> = (set, get) => ({
                     total_installments: debt.totalInstallments,
                     installment_amount: debt.installmentAmount,
                     start_date: debt.startDate,
-                    status: debt.status
+                    status: debt.status,
+                    bank_id: debt.bankId
                 })
                 .select()
                 .single();
@@ -87,6 +89,7 @@ export const createDebtsSlice: StateCreator<DebtsSlice> = (set, get) => ({
                 installmentAmount: data.installment_amount,
                 startDate: data.start_date,
                 status: data.status,
+                bankId: data.bank_id,
                 items: []
             };
 
@@ -108,6 +111,7 @@ export const createDebtsSlice: StateCreator<DebtsSlice> = (set, get) => ({
             if (updates.installmentAmount !== undefined) snakeCaseUpdates.installment_amount = updates.installmentAmount;
             if (updates.startDate !== undefined) snakeCaseUpdates.start_date = updates.startDate;
             if (updates.status !== undefined) snakeCaseUpdates.status = updates.status;
+            if (updates.bankId !== undefined) snakeCaseUpdates.bank_id = updates.bankId;
 
             const { error } = await supabase
                 .from('debts')

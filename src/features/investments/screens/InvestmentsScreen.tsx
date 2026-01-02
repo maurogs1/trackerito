@@ -5,11 +5,13 @@ import { theme } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay, parseCurrencyInput, formatCurrencyInput } from '../../../shared/utils/currency';
 import { Investment, InvestmentType } from '../types';
+import { useToast } from '../../../shared/hooks/useToast';
 
 export default function InvestmentsScreen() {
   const { investments, addInvestment, removeInvestment, preferences } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const { showSuccess } = useToast();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newInvestment, setNewInvestment] = useState<{ name: string; amount: string; type: InvestmentType }>({
@@ -20,13 +22,13 @@ export default function InvestmentsScreen() {
 
   const totalValue = investments.reduce((sum, i) => sum + i.amount, 0);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newInvestment.name || !newInvestment.amount) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
     }
 
-    addInvestment({
+    await addInvestment({
       name: newInvestment.name,
       amount: parseCurrencyInput(newInvestment.amount),
       type: newInvestment.type,
@@ -34,17 +36,25 @@ export default function InvestmentsScreen() {
       date: new Date().toISOString()
     });
 
+    showSuccess(`Inversión "${newInvestment.name}" agregada correctamente`);
     setIsModalVisible(false);
     setNewInvestment({ name: '', amount: '', type: 'other' });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, name: string) => {
     Alert.alert(
       "Eliminar Inversión",
       "¿Estás seguro?",
       [
         { text: "Cancelar", style: "cancel" },
-        { text: "Eliminar", style: "destructive", onPress: () => removeInvestment(id) }
+        { 
+          text: "Eliminar", 
+          style: "destructive", 
+          onPress: async () => {
+            await removeInvestment(id);
+            showSuccess(`Inversión "${name}" eliminada`);
+          }
+        }
       ]
     );
   };
@@ -265,7 +275,7 @@ export default function InvestmentsScreen() {
           <TouchableOpacity 
             key={item.id} 
             style={styles.item}
-            onLongPress={() => handleDelete(item.id)}
+            onLongPress={() => handleDelete(item.id, item.name)}
             delayLongPress={500}
           >
             <View style={styles.itemLeft}>

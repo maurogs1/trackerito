@@ -8,6 +8,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay } from '../../../shared/utils/currency'; // Fixed import
 import { BENEFITS, BANKS, formatBenefitDays } from '../../benefits/mockBenefits';
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -417,6 +419,19 @@ export default function DashboardScreen() {
 
           <TouchableOpacity 
             style={styles.carouselCard}
+            onPress={() => navigation.navigate('Banks')}
+          >
+            <View style={[styles.carouselIcon, { backgroundColor: '#1976D2' }]}>
+              <Ionicons name="business" size={20} color="#FFF" />
+            </View>
+            <View>
+              <Text style={styles.carouselTitle}>Bancos</Text>
+              <Text style={styles.carouselSubtitle}>Tarjetas y más</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.carouselCard}
             onPress={() => navigation.navigate('Goals')}
           >
             <View style={[styles.carouselIcon, { backgroundColor: '#FF9800' }]}>
@@ -464,6 +479,19 @@ export default function DashboardScreen() {
             <View>
               <Text style={styles.carouselTitle}>Educación</Text>
               <Text style={styles.carouselSubtitle}>Aprende más</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.carouselCard}
+            onPress={() => navigation.navigate('MonthlyPayments')}
+          >
+            <View style={[styles.carouselIcon, { backgroundColor: '#F44336' }]}>
+              <Ionicons name="calendar" size={20} color="#FFF" />
+            </View>
+            <View>
+              <Text style={styles.carouselTitle}>Pagos</Text>
+              <Text style={styles.carouselSubtitle}>Control mensual</Text>
             </View>
           </TouchableOpacity>
         </ScrollView>
@@ -541,18 +569,23 @@ export default function DashboardScreen() {
 
           return (
             <View key={expense.id} style={styles.expenseItem}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                 <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
                   <Ionicons name={category.icon as any} size={24} color={category.color} />
                 </View>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.expenseDescription}>{expense.description}</Text>
                   <Text style={styles.expenseCategory} numberOfLines={1}>
                     {categoryNames || category.name}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
+                <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 4 }}>
+                  {format(parseISO(expense.date), 'd MMM yyyy', { locale: es })}
+                </Text>
+              </View>
             </View>
           );
         })}

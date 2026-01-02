@@ -12,6 +12,9 @@ import { createBudgetsSlice, BudgetsSlice } from './slices/budgetsSlice';
 import { createBenefitsSlice, BenefitsSlice } from './slices/benefitsSlice';
 import { createInvestmentsSlice, InvestmentsSlice } from './slices/investmentsSlice';
 import { createDebtsSlice, DebtsSlice } from './slices/debtsSlice';
+import { createBanksSlice, BanksSlice } from './slices/banksSlice';
+import { createCreditCardsSlice, CreditCardsSlice } from './slices/creditCardsSlice';
+import { createRecurringServicesSlice, RecurringServicesSlice } from './slices/recurringServicesSlice';
 
 // Combined store type
 export type StoreState = AuthSlice &
@@ -22,7 +25,10 @@ export type StoreState = AuthSlice &
   BudgetsSlice &
   BenefitsSlice &
   InvestmentsSlice &
-  DebtsSlice;
+  DebtsSlice &
+  BanksSlice &
+  CreditCardsSlice &
+  RecurringServicesSlice;
 
 // Create the combined store
 export const useStore = create<StoreState>()(
@@ -37,6 +43,9 @@ export const useStore = create<StoreState>()(
       ...createBenefitsSlice(...a),
       ...createInvestmentsSlice(...a),
       ...createDebtsSlice(...a),
+      ...createBanksSlice(...a),
+      ...createCreditCardsSlice(...a),
+      ...createRecurringServicesSlice(...a),
     }),
     {
       name: 'trackerito-storage',
@@ -51,6 +60,11 @@ export const useStore = create<StoreState>()(
         userBanks: state.userBanks,
         investments: state.investments,
         debts: state.debts,
+        banks: state.banks,
+        creditCards: state.creditCards,
+        creditCardPurchases: state.creditCardPurchases,
+        recurringServices: state.recurringServices,
+        servicePayments: state.servicePayments,
         preferences: state.preferences,
         isDemoMode: state.isDemoMode
       }),
@@ -72,6 +86,11 @@ const initializeStore = async () => {
     state.loadBudgets(),
     state.loadInvestments(),
     state.loadDebts(),
+    state.loadBanks(),
+    state.loadCreditCards(),
+    state.loadCreditCardPurchases(),
+    state.loadRecurringServices(),
+    state.loadServicePayments(),
   ]);
 
   console.log('Store initialized');

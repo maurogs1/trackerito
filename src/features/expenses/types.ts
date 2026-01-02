@@ -17,6 +17,9 @@ export interface Expense {
   date: string; // ISO string
   createdAt: string;
   financialType?: FinancialType;
+  creditCardId?: string;
+  isCreditCardPayment?: boolean;
+  serviceId?: string; // Foreign Key to RecurringService table
 }
 
 export interface ExpenseSummary {
@@ -28,6 +31,11 @@ export interface ExpenseSummary {
 
 export type DebtStatus = 'active' | 'paid' | 'cancelled';
 
+export interface Bank {
+  id: string;
+  name: string;
+}
+
 export interface Debt {
   id: string;
   name: string;
@@ -37,6 +45,7 @@ export interface Debt {
   installmentAmount: number;
   startDate: string; // ISO Date
   status: DebtStatus;
+  bankId?: string;
   items?: DebtItem[];
 }
 

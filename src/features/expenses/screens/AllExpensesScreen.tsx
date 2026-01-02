@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
@@ -7,6 +7,7 @@ import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay } from '../../../shared/utils/currency';
+import { useToast } from '../../../shared/hooks/useToast';
 import { 
   startOfWeek, 
   endOfWeek, 
@@ -35,6 +36,7 @@ export default function AllExpensesScreen() {
   const { expenses, categories, preferences, removeExpense } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const { showSuccess, showError } = useToast();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('all');
@@ -44,8 +46,10 @@ export default function AllExpensesScreen() {
   const [customDateRange, setCustomDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
-
-  const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
+  
+  // Delete Confirmation Modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
 
   // Filter expenses based on selected filters
   const filteredExpenses = useMemo(() => {
@@ -104,40 +108,28 @@ export default function AllExpensesScreen() {
     }
   };
   
-  const handleDelete = (id: string) => {
-    console.log('handleDelete called with id:', id);
+  const handleDelete = async (id: string) => {
+    setExpenseToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!expenseToDelete) return;
     
-    // Check platform using React Native's Platform API
-    const isWeb = Platform.OS === 'web';
-    
-    if (isWeb) {
-      // Web fallback - use window.confirm
-      // @ts-ignore - window exists on web platform
-      const confirmed = window.confirm('¿Estás seguro de que quieres eliminar este gasto?');
-      console.log('Web confirm result:', confirmed);
-      if (confirmed) {
-        console.log('Removing expense:', id);
-        removeExpense(id);
-      }
-    } else {
-      // Native Alert
-      console.log('Showing native Alert');
-      Alert.alert(
-        "Eliminar Gasto",
-        "¿Estás seguro de que quieres eliminar este gasto?",
-        [
-          { text: "Cancelar", style: "cancel", onPress: () => console.log('Cancelled') },
-          { 
-            text: "Eliminar", 
-            style: "destructive", 
-            onPress: () => {
-              console.log('Removing expense:', id);
-              removeExpense(id);
-            }
-          }
-        ]
-      );
+    try {
+      await removeExpense(expenseToDelete);
+      showSuccess('Gasto eliminado correctamente');
+      setShowDeleteModal(false);
+      setExpenseToDelete(null);
+    } catch (error) {
+      showError('Error al eliminar el gasto');
+      setShowDeleteModal(false);
+      setExpenseToDelete(null);
     }
+  };
+
+  const handleEdit = (expenseId: string) => {
+    navigation.navigate('AddExpense', { expenseId });
   };
 
   const renderCalendar = () => {
@@ -314,17 +306,26 @@ export default function AllExpensesScreen() {
     },
     expenseItem: {
       backgroundColor: currentTheme.card,
-      padding: 12,
       borderRadius: 12,
       marginBottom: 8,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.05,
       shadowRadius: 4,
       elevation: 1,
+      overflow: 'visible',
+      position: 'relative',
+    },
+    expenseItemContent: {
+      flexDirection: 'row',
+      padding: 12,
+      alignItems: 'center',
+    },
+    deleteButtonContainer: {
+      position: 'absolute',
+      top: -4,
+      right: 0,
+      zIndex: 10,
     },
     iconContainer: {
       width: 36,
@@ -347,10 +348,25 @@ export default function AllExpensesScreen() {
       fontSize: 12,
       color: currentTheme.textSecondary,
     },
+    rightColumn: {
+      alignItems: 'flex-end',
+    },
     expenseAmount: {
       fontSize: 14,
       fontWeight: 'bold',
       color: currentTheme.error,
+    },
+    expenseDate: {
+      fontSize: 12,
+      color: currentTheme.textSecondary,
+      marginTop: 4,
+    },
+    deleteButton: {
+      width: 22,
+      height: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'transparent',
     },
     emptyState: {
       alignItems: 'center',
@@ -372,6 +388,7 @@ export default function AllExpensesScreen() {
       backgroundColor: 'rgba(0,0,0,0.5)',
       justifyContent: 'center',
       alignItems: 'center',
+      padding: 20,
     },
     calendarContainer: {
       width: '90%',
@@ -466,6 +483,62 @@ export default function AllExpensesScreen() {
     applyButtonText: {
       color: '#FFFFFF',
       fontWeight: '600',
+    },
+    deleteModalContent: {
+      backgroundColor: currentTheme.card,
+      borderRadius: 16,
+      padding: 24,
+      width: '85%',
+      maxWidth: 400,
+      alignItems: 'center',
+    },
+    deleteModalIcon: {
+      marginBottom: 16,
+    },
+    deleteModalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: currentTheme.text,
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    deleteModalMessage: {
+      fontSize: 14,
+      color: currentTheme.textSecondary,
+      textAlign: 'center',
+      marginBottom: 24,
+      lineHeight: 20,
+    },
+    deleteModalButtons: {
+      flexDirection: 'row',
+      gap: 12,
+      width: '100%',
+    },
+    deleteModalButton: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    deleteModalButtonCancel: {
+      backgroundColor: currentTheme.surface,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+    },
+    deleteModalButtonConfirm: {
+      backgroundColor: currentTheme.error,
+    },
+    deleteModalButtonCancelText: {
+      color: currentTheme.text,
+      fontWeight: '600',
+      fontSize: 16,
+    },
+    deleteModalButtonConfirmText: {
+      color: '#FFFFFF',
+      fontWeight: '600',
+      fontSize: 16,
     },
   });
 
@@ -615,65 +688,42 @@ export default function AllExpensesScreen() {
               .filter(Boolean)
               .join(', ');
 
-            const isExpanded = expandedExpenseId === expense.id;
-
             return (
-              <TouchableOpacity 
-                key={expense.id} 
-                style={[styles.expenseItem, isExpanded && { borderColor: currentTheme.primary, borderWidth: 1 }]}
-                activeOpacity={0.9}
-                onPress={() => setExpandedExpenseId(isExpanded ? null : expense.id)}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View key={expense.id} style={styles.expenseItem}>
+                <TouchableOpacity 
+                  style={styles.expenseItemContent}
+                  onPress={() => handleEdit(expense.id)}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
                     <Ionicons name={category.icon as any} size={18} color={category.color} />
                   </View>
                   <View style={styles.expenseDetails}>
                     <Text style={styles.expenseDescription}>{expense.description}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.expenseCategory, { flex: 1, marginRight: 8 }]} numberOfLines={1}>
-                        {categoryNames || category.name}
-                      </Text>
-                      <Text style={[styles.expenseCategory, { marginHorizontal: 4 }]}>•</Text>
-                      <Text style={styles.expenseCategory}>{format(parseISO(expense.date), 'd MMM', { locale: es })}</Text>
-                    </View>
+                    <Text style={[styles.expenseCategory, { marginTop: 4 }]} numberOfLines={1}>
+                      {categoryNames || category.name}
+                    </Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end', justifyContent: 'center', height: 40 }}>
-                    {isExpanded ? (
-                      <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-                        <TouchableOpacity 
-                          onPress={() => {
-                            console.log('Edit button pressed for expense:', expense.id);
-                            navigation.navigate('AddExpense', { expenseId: expense.id });
-                          }}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons name="pencil" size={16} color={currentTheme.primary} />
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                          onPress={() => {
-                            console.log('Delete button pressed for expense:', expense.id);
-                            handleDelete(expense.id);
-                          }}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons name="trash" size={16} color={currentTheme.error} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity onPress={() => setExpandedExpenseId(null)}>
-                           <Ionicons name="chevron-up" size={16} color={currentTheme.textSecondary} />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
-                        <Ionicons name="chevron-down" size={16} color={currentTheme.textSecondary} style={{ marginTop: 4 }} />
-                      </View>
-                    )}
+                  <View style={styles.rightColumn}>
+                    <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
+                    <Text style={styles.expenseDate}>
+                      {format(parseISO(expense.date), 'd MMM yyyy', { locale: es })}
+                    </Text>
                   </View>
+                </TouchableOpacity>
+                <View style={styles.deleteButtonContainer}>
+                  <TouchableOpacity 
+                    style={styles.deleteButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleDelete(expense.id);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close" size={16} color={currentTheme.textSecondary} />
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
             );
           })
         )}
@@ -689,6 +739,53 @@ export default function AllExpensesScreen() {
         <View style={styles.modalOverlay}>
           {renderCalendar()}
         </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowDeleteModal(false);
+          setExpenseToDelete(null);
+        }}
+      >
+        <TouchableWithoutFeedback onPress={() => {
+          setShowDeleteModal(false);
+          setExpenseToDelete(null);
+        }}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.deleteModalContent}>
+                <View style={styles.deleteModalIcon}>
+                  <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
+                </View>
+                <Text style={styles.deleteModalTitle}>Eliminar Gasto</Text>
+                <Text style={styles.deleteModalMessage}>
+                  ¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.
+                </Text>
+                <View style={styles.deleteModalButtons}>
+                  <TouchableOpacity
+                    style={[styles.deleteModalButton, styles.deleteModalButtonCancel]}
+                    onPress={() => {
+                      setShowDeleteModal(false);
+                      setExpenseToDelete(null);
+                    }}
+                  >
+                    <Text style={styles.deleteModalButtonCancelText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.deleteModalButton, styles.deleteModalButtonConfirm]}
+                    onPress={confirmDelete}
+                  >
+                    <Text style={styles.deleteModalButtonConfirmText}>Eliminar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );

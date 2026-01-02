@@ -2,6 +2,7 @@ import { StateCreator } from 'zustand';
 import { Expense, ExpenseSummary } from '../../features/expenses/types';
 import { mockApi } from '../../services/mockApi';
 import { startOfMonth, subMonths, isSameMonth, getDaysInMonth, getDate } from 'date-fns';
+import { getUserFriendlyMessage, logError } from '../../shared/utils/errorHandler';
 
 export interface ExpensesSlice {
   expenses: Expense[];
@@ -35,13 +36,9 @@ export const createExpensesSlice: StateCreator<
 
   loadExpenses: async () => {
     const isDemoMode = (get() as any).isDemoMode;
-    set({ isLoading: true } as any);
+    set({ isLoading: true, error: null } as any);
     
     try {
-      if (isDemoMode) {
-        // Load mock data
-        set({ expenses: getMockExpenses(), isLoading: false } as any);
-      } else {
         // Load from Supabase
         const { supabase } = await import('../../services/supabase');
         const { data, error } = await supabase
@@ -50,8 +47,9 @@ export const createExpensesSlice: StateCreator<
           .order('date', { ascending: false });
         
         if (error) {
-          console.error('Error loading expenses from Supabase:', error);
-          set({ expenses: [], isLoading: false } as any);
+          logError(error, 'loadExpenses');
+          const errorMessage = getUserFriendlyMessage(error, 'load');
+          set({ expenses: [], isLoading: false, error: errorMessage } as any);
         } else {
           const loadedExpenses = (data || []).map((item: any) => ({
             ...item,
@@ -60,12 +58,12 @@ export const createExpensesSlice: StateCreator<
               ? item.expense_categories.map((ec: any) => ec.category_id)
               : [] 
           }));
-          set({ expenses: loadedExpenses, isLoading: false } as any);
+          set({ expenses: loadedExpenses, isLoading: false, error: null } as any);
         }
-      }
     } catch (error) {
-      console.error('Error in loadExpenses:', error);
-      set({ expenses: [], isLoading: false } as any);
+      logError(error, 'loadExpenses');
+      const errorMessage = getUserFriendlyMessage(error, 'load');
+      set({ expenses: [], isLoading: false, error: errorMessage } as any);
     }
   },
 
@@ -74,31 +72,6 @@ export const createExpensesSlice: StateCreator<
     try {
       const isDemoMode = (get() as any).isDemoMode;
       
-      if (isDemoMode) {
-        // Only generate ID for demo mode
-        const newExpense: Expense = {
-          ...expenseData,
-          id: Math.random().toString(36).substr(2, 9),
-          createdAt: new Date().toISOString(),
-          financialType: expenseData.financialType || 'unclassified',
-        };
-        await mockApi.addExpense(newExpense);
-        
-        set((state) => {
-          const categories = (state as any).categories || [];
-          const updatedCategories = categories.map((c: any) => 
-            expenseData.categoryIds.includes(c.id)
-              ? { ...c, usageCount: (c.usageCount || 0) + 1 } 
-              : c
-          );
-
-          return { 
-            expenses: [newExpense, ...state.expenses],
-            categories: updatedCategories,
-            isLoading: false 
-          } as any;
-        });
-      } else {
         // Real mode - Supabase generates the ID
         const { supabase } = await import('../../services/supabase');
         const user = (get() as any).user;
@@ -107,8 +80,8 @@ export const createExpensesSlice: StateCreator<
         console.log('User ID:', user?.id);
         
         if (!user || !user.id) {
-          const errorMsg = 'No user authenticated. Cannot save expense.';
-          console.error(errorMsg);
+          const errorMsg = getUserFriendlyMessage(new Error('No user authenticated'), 'expense');
+          logError(new Error('No user authenticated'), 'addExpense');
           set({ error: errorMsg, isLoading: false } as any);
           throw new Error(errorMsg);
         }
@@ -120,6 +93,9 @@ export const createExpensesSlice: StateCreator<
           date: expenseData.date,
           financial_type: expenseData.financialType || 'unclassified',
           user_id: user.id,
+          credit_card_id: expenseData.creditCardId,
+          is_credit_card_payment: expenseData.isCreditCardPayment,
+          service_id: expenseData.serviceId
         };
         
         console.log('Inserting expense:', expenseToInsert);
@@ -130,7 +106,7 @@ export const createExpensesSlice: StateCreator<
           .select(); // Get the created record back with generated ID
         
         if (error) {
-          console.error('Error adding expense to Supabase:', error);
+          logError(error, 'addExpense');
           throw error;
         }
         
@@ -149,7 +125,7 @@ export const createExpensesSlice: StateCreator<
             .insert(junctionData);
 
           if (junctionError) {
-            console.error('Error linking categories:', junctionError);
+            logError(junctionError, 'addExpense-categories');
             // We might want to delete the expense if this fails, but for now let's keep it
           }
         }
@@ -173,7 +149,8 @@ export const createExpensesSlice: StateCreator<
             }
           }
         } catch (err) {
-          console.error('Error incrementing usage count:', err);
+          logError(err, 'addExpense-usageCount');
+          // Non-critical error, continue
         }
         
         // Use the expense returned by Supabase (includes generated ID)
@@ -185,6 +162,9 @@ export const createExpensesSlice: StateCreator<
           date: data[0].date,
           createdAt: data[0].created_at,
           financialType: data[0].financial_type,
+          creditCardId: data[0].credit_card_id,
+          isCreditCardPayment: data[0].is_credit_card_payment,
+          serviceId: data[0].service_id,
         };
         
         set((state) => {
@@ -201,9 +181,10 @@ export const createExpensesSlice: StateCreator<
             isLoading: false 
           } as any;
         });
-      }
     } catch (error) {
-      set({ error: 'Failed to add expense', isLoading: false } as any);
+      logError(error, 'addExpense');
+      const errorMessage = getUserFriendlyMessage(error, 'expense');
+      set({ error: errorMessage, isLoading: false } as any);
     }
   },
 
@@ -214,15 +195,6 @@ export const createExpensesSlice: StateCreator<
     try {
       const isDemoMode = (get() as any).isDemoMode;
       
-      if (isDemoMode) {
-        // Update mock data
-        set((state) => ({
-          expenses: state.expenses.map(e => 
-            e.id === id ? { ...e, ...expenseData } : e
-          ),
-          isLoading: false
-        } as any));
-      } else {
         const { supabase } = await import('../../services/supabase');
         
         // 1. Update expenses table
@@ -271,20 +243,16 @@ export const createExpensesSlice: StateCreator<
           ),
           isLoading: false
         } as any));
-      }
     } catch (error) {
-      console.error('Error updating expense:', error);
-      set({ error: 'Failed to update expense', isLoading: false } as any);
+      logError(error, 'updateExpense');
+      const errorMessage = getUserFriendlyMessage(error, 'update');
+      set({ error: errorMessage, isLoading: false } as any);
     }
   },
 
   removeExpense: async (id) => {
     set({ isLoading: true, error: null } as any);
     try {
-      const isDemoMode = (get() as any).isDemoMode;
-      if (isDemoMode) {
-        // Remove from mock (just local state)
-      } else {
         // Remove from Supabase
         const { supabase } = await import('../../services/supabase');
         const { error } = await supabase
@@ -293,17 +261,19 @@ export const createExpensesSlice: StateCreator<
           .eq('id', id);
         
         if (error) {
-          console.error('Error removing expense from Supabase:', error);
+          logError(error, 'removeExpense');
           throw error;
         }
-      }
       
       set((state) => ({
         expenses: state.expenses.filter((e) => e.id !== id),
-        isLoading: false
+        isLoading: false,
+        error: null
       } as any));
     } catch (error) {
-      set({ error: 'Failed to remove expense', isLoading: false } as any);
+      logError(error, 'removeExpense');
+      const errorMessage = getUserFriendlyMessage(error, 'delete');
+      set({ error: errorMessage, isLoading: false } as any);
     }
   },
 

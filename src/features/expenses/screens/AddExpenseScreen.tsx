@@ -11,6 +11,7 @@ import { FinancialType } from '../types';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useToast } from '../../../shared/hooks/useToast';
 
 type AddExpenseScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AddExpense'>;
 type AddExpenseScreenRouteProp = RouteProp<RootStackParamList, 'AddExpense'>;
@@ -26,9 +27,10 @@ const COLORS = ['#FF5722', '#9C27B0', '#2196F3', '#F44336', '#607D8B', '#4CAF50'
 export default function AddExpenseScreen() {
   const navigation = useNavigation<AddExpenseScreenNavigationProp>();
   const route = useRoute<AddExpenseScreenRouteProp>();
-  const { addExpense, updateExpense, expenses, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories } = useStore();
+  const { addExpense, updateExpense, expenses, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories, creditCards, banks, addCreditCardPurchase } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const { showSuccess } = useToast();
 
   const expenseId = route.params?.expenseId;
   const isEditing = !!expenseId;
@@ -43,6 +45,15 @@ export default function AddExpenseScreen() {
   const [financialType, setFinancialType] = useState<FinancialType>('unclassified');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Payment Method State
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit_card'>('cash');
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [installments, setInstallments] = useState('1');
+  const [isExistingPurchase, setIsExistingPurchase] = useState(false);
+  const [currentInstallment, setCurrentInstallment] = useState('1');
+  const [cardModalVisible, setCardModalVisible] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   // Quick Add Modal State
   const [modalVisible, setModalVisible] = useState(false);
@@ -89,7 +100,16 @@ export default function AddExpenseScreen() {
         navigation.setOptions({ title: 'Editar Gasto' });
       }
     }
-  }, [expenseId, isEditing]); // Removed 'expenses' and 'categories' to prevent re-run on store updates
+  }, [expenseId, isEditing]);
+
+  useEffect(() => {
+    if (route.params?.amount) {
+      setAmount(formatCurrencyInput(route.params.amount.toString()));
+    }
+    if (route.params?.description) {
+      setDescription(route.params.description);
+    }
+  }, [route.params]);
 
   useEffect(() => {
     if (!isEditing && sortedCategories.length > 0 && selectedCategoryIds.length === 0) {
@@ -160,62 +180,71 @@ export default function AddExpenseScreen() {
         date: date.toISOString(),
         financialType: financialType,
       });
+      showSuccess('Gasto actualizado correctamente');
       navigation.goBack();
     } else {
-      await addExpense({
-        amount: numAmount,
-        description,
-        categoryIds: selectedCategoryIds,
-        date: date.toISOString(),
-        financialType: financialType,
-      });
+      // Si viene desde "Pagos" para pagar el resumen de tarjeta
+      if (route.params?.isCreditCardPayment && route.params?.creditCardId) {
+        // Crear el gasto del pago del resumen
+        await addExpense({
+          amount: numAmount,
+          description,
+          categoryIds: selectedCategoryIds,
+          date: date.toISOString(),
+          financialType: financialType,
+          creditCardId: route.params.creditCardId,
+          isCreditCardPayment: true
+        });
+        showSuccess('Pago del resumen registrado correctamente');
+        navigation.goBack();
+      }
+      // Si el usuario seleccionó tarjeta de crédito como método de pago
+      else if (paymentMethod === 'credit_card' && selectedCardId) {
+        // Verificar que tenga cuotas
+        const numInstallments = parseInt(installments) || 1;
+        
+        // Calcular la fecha de la primera cuota
+        let firstInstallmentDate = new Date(date);
+        if (isExistingPurchase && parseInt(currentInstallment) > 1) {
+          // Si está registrando una compra pasada, calcular la fecha de la primera cuota
+          const currentInst = parseInt(currentInstallment) || 1;
+          firstInstallmentDate.setMonth(firstInstallmentDate.getMonth() - (currentInst - 1));
+        }
 
-      // Check if "Deuda" category is selected
-      const isDebt = selectedCategoryIds.some(id => {
-        const cat = allCategories.find(c => c.id === id);
-        return cat?.name.toLowerCase() === 'deuda';
-      });
+        // Crear el consumo de tarjeta (NO un gasto)
+        const purchaseData = {
+          credit_card_id: selectedCardId,
+          description,
+          total_amount: numAmount,
+          installments: numInstallments,
+          first_installment_date: firstInstallmentDate.toISOString().split('T')[0], // Solo la fecha sin hora
+          categoryIds: selectedCategoryIds, // Múltiples categorías
+        };
 
-      if (isDebt) {
-        // We need the ID of the just-created expense. 
-        // Since addExpense is void in the store interface but the implementation might not return it easily without refactoring,
-        // we might need to fetch the latest expense or refactor addExpense to return the ID.
-        // Let's refactor addExpense in the store to return the ID first.
-        // Wait, I already updated addExpense in my thought process but I need to check if I actually updated the return type in the interface.
-        // Checking expensesSlice.ts... addExpense returns Promise<void>.
-        // I should update expensesSlice to return the ID.
-        // For now, let's assume I will update it.
+        const purchase = await addCreditCardPurchase(purchaseData);
 
-        // Actually, let's just fetch the latest expense for this user to be safe if we don't want to change the signature right now.
-        // But changing signature is better.
-        // Let's assume for this step that I will update the store to return the ID.
-        // If I can't, I'll fetch the latest expense.
-
-        // Let's try to get the latest expense from the store state after adding.
-        const latestExpense = useStore.getState().expenses[0]; // Assuming it's prepended
-
-        Alert.alert(
-          'Configurar Deuda',
-          '¿Deseas configurar este gasto como parte de una deuda?',
-          [
-            {
-              text: 'No',
-              onPress: () => navigation.goBack(),
-              style: 'cancel'
-            },
-            {
-              text: 'Sí',
-              onPress: () => {
-                navigation.replace('ConfigureDebt', { expenseId: latestExpense.id });
-              }
-            }
-          ]
-        );
-      } else {
+        if (purchase) {
+          showSuccess('Consumo registrado. Aparecerá en el resumen mensual de la tarjeta');
+          navigation.goBack();
+        } else {
+          Alert.alert('Error', 'No se pudo registrar el consumo');
+        }
+      }
+      // Gasto normal (efectivo/débito)
+      else {
+        await addExpense({
+          amount: numAmount,
+          description,
+          categoryIds: selectedCategoryIds,
+          date: date.toISOString(),
+          financialType: financialType,
+        });
+        showSuccess('Gasto agregado correctamente');
         navigation.goBack();
       }
     }
   };
+
 
   const handleQuickAddCategory = async () => {
     if (newCategoryName) {
@@ -228,6 +257,7 @@ export default function AddExpenseScreen() {
       if (newCategory) {
         setNewlyAddedCategoryIds(prev => [newCategory.id, ...prev]);
         setSelectedCategoryIds(prev => [...prev, newCategory.id]);
+        showSuccess(`Categoría "${newCategoryName}" creada`);
       }
 
       setModalVisible(false);
@@ -445,194 +475,371 @@ export default function AddExpenseScreen() {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container}>
-        <Text style={styles.label}>Monto</Text>
-        <View style={[styles.inputContainer, isAmountFocused && styles.inputFocused]}>
-          <TextInput
-            style={styles.inputField}
-            placeholder="0,00"
-            placeholderTextColor={currentTheme.textSecondary}
-            keyboardType="numeric"
-            value={amount}
-            onChangeText={handleAmountChange}
-            onFocus={() => setIsAmountFocused(true)}
-            onBlur={() => setIsAmountFocused(false)}
-            autoFocus
-          />
-        </View>
+        {currentStep === 1 ? (
+            <>
+                <Text style={styles.label}>Monto</Text>
+                <View style={[styles.inputContainer, isAmountFocused && styles.inputFocused]}>
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="0,00"
+                    placeholderTextColor={currentTheme.textSecondary}
+                    keyboardType="numeric"
+                    value={amount}
+                    onChangeText={handleAmountChange}
+                    onFocus={() => setIsAmountFocused(true)}
+                    onBlur={() => setIsAmountFocused(false)}
+                    autoFocus
+                  />
+                </View>
 
-        <Text style={styles.label}>Descripción</Text>
-        <View style={[styles.inputContainer, isDescriptionFocused && styles.inputFocused]}>
-          <TextInput
-            style={styles.inputField}
-            placeholder="¿Qué compraste?"
-            placeholderTextColor={currentTheme.textSecondary}
-            value={description}
-            onChangeText={setDescription}
-            onFocus={() => setIsDescriptionFocused(true)}
-            onBlur={() => setIsDescriptionFocused(false)}
-          />
-        </View>
+                <Text style={styles.label}>Descripción</Text>
+                <View style={[styles.inputContainer, isDescriptionFocused && styles.inputFocused]}>
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="¿Qué compraste?"
+                    placeholderTextColor={currentTheme.textSecondary}
+                    value={description}
+                    onChangeText={setDescription}
+                    onFocus={() => setIsDescriptionFocused(true)}
+                    onBlur={() => setIsDescriptionFocused(false)}
+                  />
+                </View>
 
-        <Text style={styles.label}>Fecha</Text>
-        <View style={styles.inputContainer}>
-          {Platform.OS === 'web' ? (
-            <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 16 }}>
-              {/* @ts-ignore - React Native Web specific */}
-              {React.createElement('input', {
-                type: 'date',
-                value: format(date, 'yyyy-MM-dd'),
-                onChange: handleWebDateChange,
-                style: {
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  color: currentTheme.text,
-                  fontSize: '16px',
-                  fontFamily: 'System',
-                  width: '100%',
-                  height: '100%',
-                  outline: 'none'
-                }
-              })}
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: '100%' }}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Ionicons name="calendar-outline" size={20} color={currentTheme.textSecondary} style={{ marginRight: 10 }} />
-              <Text style={{ color: currentTheme.text, fontSize: 16 }}>
-                {format(date, 'dd/MM/yyyy', { locale: es })}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+                <Text style={styles.label}>Fecha</Text>
+                <View style={styles.inputContainer}>
+                  {Platform.OS === 'web' ? (
+                    <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 16 }}>
+                      {/* @ts-ignore - React Native Web specific */}
+                      {React.createElement('input', {
+                        type: 'date',
+                        value: format(date, 'yyyy-MM-dd'),
+                        onChange: handleWebDateChange,
+                        style: {
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: currentTheme.text,
+                          fontSize: '16px',
+                          fontFamily: 'System',
+                          width: '100%',
+                          height: '100%',
+                          outline: 'none'
+                        }
+                      })}
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: '100%' }}
+                      onPress={() => setShowDatePicker(true)}
+                    >
+                      <Ionicons name="calendar-outline" size={20} color={currentTheme.textSecondary} style={{ marginRight: 10 }} />
+                      <Text style={{ color: currentTheme.text, fontSize: 16 }}>
+                        {format(date, 'dd/MM/yyyy', { locale: es })}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
 
-        {Platform.OS !== 'web' && showDatePicker && (
-          <DateTimePicker
-            value={date}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleDateChange}
-            maximumDate={new Date()}
-          />
+                {Platform.OS !== 'web' && showDatePicker && (
+                  <DateTimePicker
+                    value={date}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={handleDateChange}
+                    maximumDate={new Date()}
+                  />
+                )}
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, color: currentTheme.textSecondary }}>Categoría</Text>
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: currentTheme.card,
+                    borderRadius: 8,
+                    paddingHorizontal: 8,
+                    borderWidth: 1,
+                    borderColor: isSearchFocused ? currentTheme.primary : currentTheme.border,
+                    flex: 1,
+                    marginLeft: 12,
+                    height: 36
+                  }}>
+                    <Ionicons name="search" size={16} color={isSearchFocused ? currentTheme.primary : currentTheme.textSecondary} />
+                    <TextInput
+                      style={{
+                        flex: 1,
+                        marginLeft: 8,
+                        color: currentTheme.text,
+                        paddingVertical: 0,
+                        fontSize: 14,
+                        height: '100%',
+                        ...Platform.select({
+                          web: {
+                            outlineStyle: 'none'
+                          }
+                        })
+                      } as any}
+                      placeholder="Buscar..."
+                      placeholderTextColor={currentTheme.textSecondary}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      onFocus={() => setIsSearchFocused(true)}
+                      onBlur={() => setIsSearchFocused(false)}
+                    />
+                    {searchQuery.length > 0 && (
+                      <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <Ionicons name="close-circle" size={16} color={currentTheme.textSecondary} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.categoryContainer}>
+                  {filteredCategories.slice(0, showAllCategories ? undefined : INITIAL_CATEGORY_COUNT).map((cat: any) => (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[
+                        styles.categoryChip,
+                        selectedCategoryIds.includes(cat.id) && styles.categoryChipSelected,
+                      ]}
+                      onPress={() => handleCategorySelect(cat.id)}
+                    >
+                      <Ionicons
+                        name={cat.icon as any}
+                        size={16}
+                        color={selectedCategoryIds.includes(cat.id) ? '#FFFFFF' : cat.color}
+                      />
+                      <Text
+                        style={[
+                          styles.categoryText,
+                          selectedCategoryIds.includes(cat.id) && styles.categoryTextSelected,
+                        ]}
+                      >
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+
+                  {filteredCategories.length > INITIAL_CATEGORY_COUNT && (
+                    <TouchableOpacity
+                      style={styles.categoryChip}
+                      onPress={() => setShowAllCategories(!showAllCategories)}
+                    >
+                      <Text style={styles.categoryText}>
+                        {showAllCategories ? 'Ver menos' : `Ver más (${filteredCategories.length - INITIAL_CATEGORY_COUNT})`}
+                      </Text>
+                      <Ionicons name={showAllCategories ? "chevron-up" : "chevron-down"} size={16} color={currentTheme.text} />
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.addCategoryButton}
+                    onPress={() => setModalVisible(true)}
+                  >
+                    <Ionicons name="add" size={24} color={currentTheme.primary} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.label}>Clasificación Financiera</Text>
+                <View style={styles.typeContainer}>
+                  {(['needs', 'wants', 'savings'] as FinancialType[]).map((type) => {
+                    const isSelected = financialType === type;
+                    const color = getTypeColor(type);
+                    return (
+                      <TouchableOpacity
+                        key={type}
+                        style={[
+                          styles.typeButton,
+                          isSelected && styles.typeButtonSelected,
+                          isSelected && { backgroundColor: color, borderColor: color }
+                        ]}
+                        onPress={() => setFinancialType(type)}
+                      >
+                        <Text style={[styles.typeText, isSelected && styles.typeTextSelected]}>
+                          {type === 'needs' ? 'Necesidad' : type === 'wants' ? 'Deseo' : 'Ahorro'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 40, marginBottom: 40 }}>
+                    <TouchableOpacity 
+                        style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0, backgroundColor: 'transparent', borderWidth: 1, borderColor: currentTheme.border }]} 
+                        onPress={() => setCurrentStep(2)}
+                    >
+                        <Text style={[styles.saveButtonText, { color: currentTheme.text }]}>Siguiente</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0 }]} 
+                        onPress={handleSave}
+                    >
+                        <Text style={styles.saveButtonText}>{isEditing ? 'Actualizar' : 'Guardar'}</Text>
+                    </TouchableOpacity>
+                </View>
+            </>
+        ) : (
+            <>
+                <Text style={styles.label}>Método de Pago</Text>
+                <View style={styles.typeContainer}>
+                    <TouchableOpacity
+                        style={[styles.typeButton, paymentMethod === 'cash' && styles.typeButtonSelected, paymentMethod === 'cash' && { borderColor: currentTheme.primary, backgroundColor: currentTheme.primary + '20' }]}
+                        onPress={() => setPaymentMethod('cash')}
+                    >
+                        <Text style={[styles.typeText, paymentMethod === 'cash' && { color: currentTheme.primary }]}>Efectivo / Débito</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.typeButton, paymentMethod === 'credit_card' && styles.typeButtonSelected, paymentMethod === 'credit_card' && { borderColor: currentTheme.primary, backgroundColor: currentTheme.primary + '20' }]}
+                        onPress={() => setPaymentMethod('credit_card')}
+                    >
+                        <Text style={[styles.typeText, paymentMethod === 'credit_card' && { color: currentTheme.primary }]}>Tarjeta de Crédito</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {paymentMethod === 'credit_card' && (
+                    <View style={{ marginTop: 16, padding: 16, backgroundColor: currentTheme.card, borderRadius: 12, borderWidth: 1, borderColor: currentTheme.border }}>
+                        <View style={{ 
+                            backgroundColor: currentTheme.primary + '15', 
+                            padding: 12, 
+                            borderRadius: 8, 
+                            marginBottom: 16,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 8
+                        }}>
+                            <Ionicons name="information-circle" size={20} color={currentTheme.primary} />
+                            <Text style={{ color: currentTheme.text, fontSize: 13, flex: 1 }}>
+                                Este consumo aparecerá en el resumen mensual de la tarjeta. El gasto se registrará cuando pagues el resumen.
+                            </Text>
+                        </View>
+                        
+                        <Text style={{ color: currentTheme.textSecondary, marginBottom: 8 }}>Seleccionar Tarjeta *</Text>
+                        
+                        <TouchableOpacity 
+                            style={{ 
+                                flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                                padding: 12, borderRadius: 8, borderWidth: 1, borderColor: currentTheme.border,
+                                backgroundColor: currentTheme.background, marginBottom: 16
+                            }}
+                            onPress={() => {
+                                setCardModalVisible(true);
+                            }}
+                        >
+                            <Text style={{ color: selectedCardId ? currentTheme.text : currentTheme.textSecondary, fontSize: 16 }}>
+                                {selectedCardId 
+                                    ? (() => {
+                                        const card = creditCards.find(c => c.id === selectedCardId);
+                                        const bank = banks.find(b => b.id === card?.bank_id);
+                                        return card ? `${bank?.name || 'Banco'} - ${card.name}` : 'Seleccionar Tarjeta';
+                                    })()
+                                    : 'Seleccionar Tarjeta'
+                                }
+                            </Text>
+                            <Ionicons name="chevron-down" size={20} color={currentTheme.textSecondary} />
+                        </TouchableOpacity>
+
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: currentTheme.textSecondary, marginBottom: 4 }}>Cuotas Totales</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={installments}
+                                    onChangeText={setInstallments}
+                                    keyboardType="numeric"
+                                    placeholder="1"
+                                    placeholderTextColor={currentTheme.textSecondary}
+                                />
+                            </View>
+                        </View>
+
+                        <TouchableOpacity 
+                            style={{ marginTop: 16 }}
+                            onPress={() => setIsExistingPurchase(!isExistingPurchase)}
+                        >
+                            <Text style={{ color: currentTheme.primary, fontSize: 14 }}>
+                                {isExistingPurchase ? 'Ocultar opciones avanzadas' : 'Registrar compra de meses pasados'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {isExistingPurchase && (
+                            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: currentTheme.border }}>
+                                <Text style={{ color: currentTheme.textSecondary, marginBottom: 4 }}>Cuota que pagas este mes</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={currentInstallment}
+                                    onChangeText={setCurrentInstallment}
+                                    keyboardType="numeric"
+                                    placeholder="Ej: 6"
+                                    placeholderTextColor={currentTheme.textSecondary}
+                                />
+                            </View>
+                        )}
+
+                        {/* Selector de categorías para consumos de tarjeta */}
+                        <View style={{ marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: currentTheme.border }}>
+                            <Text style={{ color: currentTheme.textSecondary, marginBottom: 8 }}>Categorías (Opcional)</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                {filteredCategories.slice(0, showAllCategories ? undefined : INITIAL_CATEGORY_COUNT).map((cat: any) => (
+                                    <TouchableOpacity
+                                        key={cat.id}
+                                        style={[
+                                            styles.categoryChip,
+                                            selectedCategoryIds.includes(cat.id) && styles.categoryChipSelected,
+                                        ]}
+                                        onPress={() => handleCategorySelect(cat.id)}
+                                    >
+                                        <Ionicons
+                                            name={cat.icon as any}
+                                            size={16}
+                                            color={selectedCategoryIds.includes(cat.id) ? '#FFFFFF' : cat.color}
+                                        />
+                                        <Text
+                                            style={[
+                                                styles.categoryText,
+                                                selectedCategoryIds.includes(cat.id) && styles.categoryTextSelected,
+                                            ]}
+                                        >
+                                            {cat.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                                {filteredCategories.length > INITIAL_CATEGORY_COUNT && (
+                                    <TouchableOpacity
+                                        style={styles.categoryChip}
+                                        onPress={() => setShowAllCategories(!showAllCategories)}
+                                    >
+                                        <Text style={styles.categoryText}>
+                                            {showAllCategories ? 'Ver menos' : `Ver más`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        </View>
+                    </View>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 40, marginBottom: 40 }}>
+                    <TouchableOpacity 
+                        style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0, backgroundColor: 'transparent', borderWidth: 1, borderColor: currentTheme.border }]} 
+                        onPress={() => setCurrentStep(1)}
+                    >
+                        <Text style={[styles.saveButtonText, { color: currentTheme.text }]}>Atrás</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[
+                            styles.saveButton, 
+                            { flex: 1, marginTop: 0, marginBottom: 0 },
+                            paymentMethod === 'credit_card' && !selectedCardId && { opacity: 0.5 }
+                        ]} 
+                        onPress={handleSave}
+                        disabled={paymentMethod === 'credit_card' && !selectedCardId}
+                    >
+                        <Text style={styles.saveButtonText}>
+                            {isEditing ? 'Actualizar' : paymentMethod === 'credit_card' ? 'Registrar Consumo' : 'Guardar'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </>
         )}
-
-        <Text style={styles.label}>Clasificación Financiera</Text>
-        <View style={styles.typeContainer}>
-          {(['needs', 'wants', 'savings'] as FinancialType[]).map((type) => {
-            const isSelected = financialType === type;
-            const color = getTypeColor(type);
-            return (
-              <TouchableOpacity
-                key={type}
-                style={[
-                  styles.typeButton,
-                  isSelected && styles.typeButtonSelected,
-                  isSelected && { backgroundColor: color, borderColor: color }
-                ]}
-                onPress={() => setFinancialType(type)}
-              >
-                <Text style={[styles.typeText, isSelected && styles.typeTextSelected]}>
-                  {type === 'needs' ? 'Necesidad' : type === 'wants' ? 'Deseo' : 'Ahorro'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
-          <Text style={{ fontSize: 16, color: currentTheme.textSecondary }}>Categoría</Text>
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: currentTheme.card,
-            borderRadius: 8,
-            paddingHorizontal: 8,
-            borderWidth: 1,
-            borderColor: isSearchFocused ? currentTheme.primary : currentTheme.border,
-            flex: 1,
-            marginLeft: 12,
-            height: 36
-          }}>
-            <Ionicons name="search" size={16} color={isSearchFocused ? currentTheme.primary : currentTheme.textSecondary} />
-            <TextInput
-              style={{
-                flex: 1,
-                marginLeft: 8,
-                color: currentTheme.text,
-                paddingVertical: 0,
-                fontSize: 14,
-                height: '100%',
-                ...Platform.select({
-                  web: {
-                    outlineStyle: 'none'
-                  }
-                })
-              } as any}
-              placeholder="Buscar..."
-              placeholderTextColor={currentTheme.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={16} color={currentTheme.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.categoryContainer}>
-          {filteredCategories.slice(0, showAllCategories ? undefined : INITIAL_CATEGORY_COUNT).map((cat: any) => (
-            <TouchableOpacity
-              key={cat.id}
-              style={[
-                styles.categoryChip,
-                selectedCategoryIds.includes(cat.id) && styles.categoryChipSelected,
-              ]}
-              onPress={() => handleCategorySelect(cat.id)}
-            >
-              <Ionicons
-                name={cat.icon as any}
-                size={16}
-                color={selectedCategoryIds.includes(cat.id) ? '#FFFFFF' : cat.color}
-              />
-              <Text
-                style={[
-                  styles.categoryText,
-                  selectedCategoryIds.includes(cat.id) && styles.categoryTextSelected,
-                ]}
-              >
-                {cat.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-
-          {filteredCategories.length > INITIAL_CATEGORY_COUNT && (
-            <TouchableOpacity
-              style={styles.categoryChip}
-              onPress={() => setShowAllCategories(!showAllCategories)}
-            >
-              <Text style={styles.categoryText}>
-                {showAllCategories ? 'Ver menos' : `Ver más (${filteredCategories.length - INITIAL_CATEGORY_COUNT})`}
-              </Text>
-              <Ionicons name={showAllCategories ? "chevron-up" : "chevron-down"} size={16} color={currentTheme.text} />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={styles.addCategoryButton}
-            onPress={() => setModalVisible(true)}
-          >
-            <Ionicons name="add" size={24} color={currentTheme.primary} />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>{isEditing ? 'Actualizar Gasto' : 'Guardar Gasto'}</Text>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* Quick Add Category Modal */}
@@ -695,6 +902,55 @@ export default function AddExpenseScreen() {
               </View>
             </TouchableWithoutFeedback>
           </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      {/* Card Selection Modal */}
+      <Modal visible={cardModalVisible} transparent animationType="fade">
+        <TouchableWithoutFeedback onPress={() => setCardModalVisible(false)}>
+            <View style={styles.modalContainer}>
+                <TouchableWithoutFeedback onPress={() => { }}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Seleccionar Tarjeta</Text>
+                        <ScrollView style={{ maxHeight: 300 }}>
+                            {creditCards.map(card => {
+                                const bank = banks.find(b => b.id === card.bank_id);
+                                return (
+                                    <TouchableOpacity
+                                        key={card.id}
+                                        style={{
+                                            padding: 16,
+                                            borderBottomWidth: 1,
+                                            borderBottomColor: currentTheme.border,
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between'
+                                        }}
+                                        onPress={() => {
+                                            setSelectedCardId(card.id);
+                                            setCardModalVisible(false);
+                                        }}
+                                    >
+                                        <View>
+                                            <Text style={{ color: currentTheme.text, fontSize: 16, fontWeight: 'bold' }}>
+                                                {bank?.name || 'Banco'} - {card.name}
+                                            </Text>
+                                        </View>
+                                        {selectedCardId === card.id && (
+                                            <Ionicons name="checkmark" size={20} color={currentTheme.primary} />
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                        <TouchableOpacity 
+                            style={{ marginTop: 16, padding: 12, alignItems: 'center' }}
+                            onPress={() => setCardModalVisible(false)}
+                        >
+                            <Text style={{ color: currentTheme.primary, fontSize: 16, fontWeight: 'bold' }}>Cancelar</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableWithoutFeedback>
+            </View>
         </TouchableWithoutFeedback>
       </Modal>
     </View>

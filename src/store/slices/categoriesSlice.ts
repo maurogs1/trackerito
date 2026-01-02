@@ -1,5 +1,6 @@
 import { StateCreator } from 'zustand';
 import { Category } from '../../features/expenses/types';
+import { getUserFriendlyMessage, logError } from '../../shared/utils/errorHandler';
 
 export interface CategoriesSlice {
   categories: Category[];
@@ -62,8 +63,9 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
           .order('name', { ascending: true });
         
         if (error) {
-          console.error('Error loading categories from Supabase:', error);
-          set({ categories: [] });
+          logError(error, 'loadCategories');
+          const errorMessage = getUserFriendlyMessage(error, 'load');
+          set({ categories: [], error: errorMessage } as any);
           return;
         }
         
@@ -88,24 +90,26 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
             .select();
           
           if (insertError) {
-            console.error('Error creating default categories:', insertError);
-            set({ categories: [] });
+            logError(insertError, 'loadCategories-defaults');
+            const errorMessage = getUserFriendlyMessage(insertError, 'category');
+            set({ categories: [], error: errorMessage } as any);
           } else {
             console.log('Default categories created successfully');
-            set({ categories: insertedData || [] });
+            set({ categories: insertedData || [], error: null } as any);
           }
         } else {
           // Ensure we don't accidentally merge with mock data if it wasn't cleared
           // We replace the entire state with the fetched data
-          set({ categories: data });
+          set({ categories: data, error: null } as any);
         }
       }
     } catch (error) {
-      console.error('Error in loadCategories:', error);
+      logError(error, 'loadCategories');
+      const errorMessage = getUserFriendlyMessage(error, 'load');
       if (isDemoMode) {
-        set({ categories: getMockCategories() });
+        set({ categories: getMockCategories(), error: null } as any);
       } else {
-        set({ categories: [] });
+        set({ categories: [], error: errorMessage } as any);
       }
     }
   },
@@ -145,16 +149,18 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         }]).select();
         
         if (error) {
-          console.error('Error adding category to Supabase:', error);
+          logError(error, 'addCategory');
           throw error;
         }
         
         // Use the category returned by Supabase
         const newCategory = data[0];
-        set((state) => ({ categories: [...state.categories, newCategory] }));
+        set((state) => ({ categories: [...state.categories, newCategory], error: null } as any));
         return newCategory;
       } catch (error) {
-        console.error('Error in addCategory:', error);
+        logError(error, 'addCategory');
+        const errorMessage = getUserFriendlyMessage(error, 'category');
+        set({ error: errorMessage } as any);
       }
     }
   },
@@ -177,7 +183,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
           .eq('id', updatedCategory.id);
         
         if (error) {
-          console.error('Error updating category in Supabase:', error);
+          logError(error, 'updateCategory');
           throw error;
         }
       }
@@ -186,9 +192,12 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         categories: state.categories.map((c) => 
           c.id === updatedCategory.id ? updatedCategory : c
         ),
-      }));
+        error: null
+      } as any));
     } catch (error) {
-      console.error('Error in updateCategory:', error);
+      logError(error, 'updateCategory');
+      const errorMessage = getUserFriendlyMessage(error, 'update');
+      set({ error: errorMessage } as any);
     }
   },
 
@@ -204,16 +213,19 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
           .eq('id', id);
         
         if (error) {
-          console.error('Error removing category from Supabase:', error);
+          logError(error, 'removeCategory');
           throw error;
         }
       }
       
       set((state) => ({
         categories: state.categories.filter((c) => c.id !== id),
-      }));
+        error: null
+      } as any));
     } catch (error) {
-      console.error('Error in removeCategory:', error);
+      logError(error, 'removeCategory');
+      const errorMessage = getUserFriendlyMessage(error, 'delete');
+      set({ error: errorMessage } as any);
     }
   },
 
@@ -250,7 +262,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         .eq('user_id', userId);
 
       if (error) {
-        console.error('Error checking categories count:', error);
+        logError(error, 'ensureDefaultCategories-check');
         return;
       }
 
@@ -274,7 +286,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
           .select();
         
         if (insertError) {
-          console.error('Error creating default categories:', insertError);
+          logError(insertError, 'ensureDefaultCategories-create');
         } else if (data) {
           console.log('Default categories created successfully');
           // Reload all categories to ensure consistency and avoid duplicates in state
@@ -282,7 +294,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         }
       }
     } catch (error) {
-      console.error('Error in ensureDefaultCategories:', error);
+      logError(error, 'ensureDefaultCategories');
     }
   },
 });

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, A
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useToast } from '../../../shared/hooks/useToast';
 
 const ICONS = ['cart', 'game-controller', 'car', 'medical', 'pricetag', 'restaurant', 'cafe', 'fitness', 'school', 'construct', 'airplane', 'home', 'football', 'basketball', 'bicycle'];
 const COLORS = ['#FF5722', '#9C27B0', '#2196F3', '#F44336', '#607D8B', '#4CAF50', '#FFC107', '#E91E63', '#795548', '#3F51B5'];
@@ -11,22 +12,26 @@ export default function CategoriesScreen() {
   const { categories, addCategory, removeCategory, preferences } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const { showSuccess } = useToast();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState(ICONS[0]);
   const [selectedColor, setSelectedColor] = useState(COLORS[0]);
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newName) {
       Alert.alert('Error', 'Por favor ingresa un nombre');
       return;
     }
-    addCategory({
+    const newCategory = await addCategory({
       name: newName,
       icon: selectedIcon,
       color: selectedColor,
     });
+    if (newCategory) {
+      showSuccess(`Categoría "${newName}" creada correctamente`);
+    }
     setModalVisible(false);
     setNewName('');
     setSelectedIcon(ICONS[0]);
@@ -42,7 +47,10 @@ export default function CategoriesScreen() {
         { 
           text: 'Eliminar', 
           style: 'destructive', 
-          onPress: () => removeCategory(id) 
+          onPress: async () => {
+            await removeCategory(id);
+            showSuccess(`Categoría "${name}" eliminada`);
+          }
         },
       ]
     );

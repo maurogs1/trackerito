@@ -14,15 +14,21 @@ import LoginScreen from '../features/auth/screens/LoginScreen';
 import GoalsScreen from '../features/goals/screens/GoalsScreen';
 import InvestmentsScreen from '../features/investments/screens/InvestmentsScreen';
 import CategoriesScreen from '../features/settings/screens/CategoriesScreen';
-import ConfigureDebtScreen from '../features/debts/screens/ConfigureDebtScreen';
-import CreateDebtScreen from '../features/debts/screens/CreateDebtScreen';
-import DebtsScreen from '../features/debts/screens/DebtsScreen';
+import BanksScreen from '../features/banks/screens/BanksScreen';
+import BankDetailScreen from '../features/banks/screens/BankDetailScreen';
+import CreditCardScreen from '../features/creditCards/screens/CreditCardScreen';
+import AddCreditCardScreen from '../features/creditCards/screens/AddCreditCardScreen';
+import AddCreditCardPurchaseScreen from '../features/creditCards/screens/AddCreditCardPurchaseScreen';
+import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
+import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
 import { StatusBar } from 'expo-status-bar';
+import Toast from '../shared/components/Toast';
+import { useToast } from '../shared/hooks/useToast';
 
 export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;
-  AddExpense: { expenseId?: string } | undefined;
+  AddExpense: { expenseId?: string; amount?: number; description?: string; isCreditCardPayment?: boolean; creditCardId?: string } | undefined;
   Settings: undefined;
   Goals: undefined;
   Categories: undefined;
@@ -31,9 +37,13 @@ export type RootStackParamList = {
   Budgets: undefined;
   Benefits: undefined;
   Investments: undefined;
-  ConfigureDebt: { expenseId: string };
-  CreateDebt: { expenseId?: string };
-  Debts: undefined;
+  Banks: undefined;
+  BankDetail: { bankId: string; bankName: string };
+  CreditCard: { cardId: string; cardName: string };
+  AddCreditCard: { bankId: string };
+  AddCreditCardPurchase: { cardId: string };
+  MonthlyPayments: undefined;
+  RecurringServices: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -42,6 +52,7 @@ export default function AppNavigator() {
   const { preferences, isAuthenticated } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const { toast, hideToast } = useToast();
 
   // Set up Supabase auth listener
   React.useEffect(() => {
@@ -50,27 +61,32 @@ export default function AppNavigator() {
     console.log('Setting up Supabase auth listener...');
 
     // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
-      console.log('Initial session check:', session ? 'Session exists' : 'No session');
-      if (session) {
-        console.log('User from initial session:', session.user?.email);
+    supabase.auth.getSession().then(({ data, error }: { data: { session: { user: unknown } | null }; error: Error | null }) => {
+      if (error) {
+        console.error('Error checking initial session:', error);
+        return;
+      }
+      
+      console.log('Initial session check:', data.session ? 'Session exists' : 'No session');
+      if (data.session?.user) {
+        console.log('User from initial session:', (data.session.user as { email?: string }).email);
         useStore.setState({
           isAuthenticated: true,
-          user: session.user
+          user: data.session.user as never
         });
       }
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event: any, session: any) => {
+      (event: string, session: { user: unknown } | null) => {
         console.log('Auth state change event:', event);
         console.log('Session:', session ? 'Session exists' : 'No session');
-        if (session) {
-          console.log('User email:', session.user?.email);
+        if (session?.user) {
+          console.log('User email:', (session.user as { email?: string }).email);
           useStore.setState({
             isAuthenticated: true,
-            user: session.user
+            user: session.user as never
           });
         } else {
           console.log('No session, logging out');
@@ -90,11 +106,11 @@ export default function AppNavigator() {
 
   const navigationTheme = isDark ? DarkTheme : DefaultTheme;
 
-  const navigator = (
+  return (
     <>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      {/* @ts-ignore - TypeScript incorrectly reports missing children prop */}
-      <Stack.Navigator
+      <NavigationContainer theme={navigationTheme}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <Stack.Navigator
         screenOptions={{
           headerStyle: {
             backgroundColor: currentTheme.card,
@@ -166,36 +182,18 @@ export default function AppNavigator() {
               component={FinancialEducationScreen}
               options={{ title: 'Educación Financiera' }}
             />
-            <Stack.Screen
-              name="FinancialEducation"
-              component={FinancialEducationScreen}
-              options={{ title: 'Educación Financiera' }}
-            />
-            <Stack.Screen
-              name="ConfigureDebt"
-              component={ConfigureDebtScreen}
-              options={{ title: 'Configurar Deuda' }}
-            />
-            <Stack.Screen
-              name="CreateDebt"
-              component={CreateDebtScreen}
-              options={{ title: 'Nueva Deuda' }}
-            />
-            <Stack.Screen
-              name="Debts"
-              component={DebtsScreen}
-              options={{ title: 'Mis Deudas' }}
-            />
+            <Stack.Screen name="Banks" component={BanksScreen} options={{ title: 'Mis Bancos' }} />
+            <Stack.Screen name="BankDetail" component={BankDetailScreen} options={{ title: 'Detalle del Banco' }} />
+            <Stack.Screen name="CreditCard" component={CreditCardScreen} options={{ title: 'Tarjeta' }} />
+            <Stack.Screen name="AddCreditCard" component={AddCreditCardScreen} options={{ title: 'Nueva Tarjeta' }} />
+            <Stack.Screen name="AddCreditCardPurchase" component={AddCreditCardPurchaseScreen} options={{ title: 'Nuevo Consumo' }} />
+            <Stack.Screen name="MonthlyPayments" component={MonthlyPaymentsScreen} options={{ title: 'Pagos del Mes' }} />
+            <Stack.Screen name="RecurringServices" component={RecurringServicesScreen} options={{ title: 'Servicios Recurrentes' }} />
           </>
         )}
-      </Stack.Navigator>
+        </Stack.Navigator>
+      </NavigationContainer>
+      <Toast toast={toast} onHide={hideToast} isDark={isDark} />
     </>
-  );
-
-  return (
-    // @ts-ignore - TypeScript incorrectly reports missing children prop
-    <NavigationContainer theme={navigationTheme}>
-      {navigator}
-    </NavigationContainer>
   );
 }

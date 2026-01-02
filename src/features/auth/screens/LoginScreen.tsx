@@ -7,6 +7,7 @@ import { makeRedirectUri } from 'expo-auth-session';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../../../services/supabase';
+import { getUserFriendlyMessage, logError } from '../../../shared/utils/errorHandler';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -29,8 +30,10 @@ export default function LoginScreen() {
         console.log('Callback error code:', errorCode);
 
         if (errorCode) {
-          console.error('OAuth error:', errorCode);
-          Alert.alert('Error', `Error de autenticación: ${errorCode}`);
+          logError(new Error(errorCode), 'OAuth-callback');
+          const errorMessage = getUserFriendlyMessage(new Error(errorCode), 'auth');
+          Alert.alert('Error', errorMessage);
+          useStore.setState({ error: errorMessage });
           return;
         }
 
@@ -52,14 +55,21 @@ export default function LoginScreen() {
             console.log('Updating store from callback...');
             useStore.setState({
               isAuthenticated: true,
-              user: sessionData.user
+              user: sessionData.user,
+              error: null
             });
-          } catch (e: any) {
-            console.error('Error setting session from callback:', e);
-            Alert.alert('Error', e.message || 'Error al completar la autenticación');
+          } catch (e: unknown) {
+            logError(e, 'OAuth-session-set');
+            const errorMessage = getUserFriendlyMessage(e, 'auth');
+            Alert.alert('Error', errorMessage);
+            useStore.setState({ error: errorMessage });
           }
         } else {
-          console.error('Missing tokens in callback URL');
+          const errorMsg = 'Faltan tokens en la URL de callback';
+          logError(new Error(errorMsg), 'OAuth-callback-tokens');
+          const errorMessage = getUserFriendlyMessage(new Error(errorMsg), 'auth');
+          Alert.alert('Error', errorMessage);
+          useStore.setState({ error: errorMessage });
         }
       }
     };
@@ -98,51 +108,49 @@ export default function LoginScreen() {
       });
 
       if (error) throw error;
-      console.log('OAuth data:', data);
       
       if (data.url) {
-        console.log('Opening auth session...');
         const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-        console.log('Auth session result:', result);
         
         if (result.type === 'success') {
           const { url } = result;
-          console.log('Success URL:', url);
           const { params, errorCode } = QueryParams.getQueryParams(url);
-          console.log('Parsed params:', params);
-          console.log('Error code:', errorCode);
 
-          if (errorCode) throw new Error(errorCode);
+          if (errorCode) {
+            throw new Error(errorCode);
+          }
           
           if (params.access_token && params.refresh_token) {
-            console.log('Setting session with tokens...');
             const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
               access_token: params.access_token,
               refresh_token: params.refresh_token,
             });
             
-            console.log('Session data:', sessionData);
             if (sessionError) {
-              console.error('Session error:', sessionError);
               throw sessionError;
             }
             
             // Manually update the store state
-            console.log('Session set successfully, updating store...');
             useStore.setState({ 
               isAuthenticated: true, 
-              user: sessionData.user 
+              user: sessionData.user,
+              error: null
             });
           } else {
-            console.error('Missing tokens in params');
+            throw new Error('Faltan tokens de autenticación');
           }
+        } else if (result.type === 'cancel') {
+          // User cancelled, don't show error
+          return;
         } else {
-          console.log('Auth session was not successful:', result.type);
+          throw new Error('La autenticación no se completó correctamente');
         }
       }
-    } catch (e: any) {
-      console.error('Error during Google login:', e);
-      Alert.alert('Error', e.message || 'Error al iniciar sesión con Google');
+    } catch (e: unknown) {
+      logError(e, 'Google-login');
+      const errorMessage = getUserFriendlyMessage(e, 'auth');
+      Alert.alert('Error', errorMessage);
+      useStore.setState({ error: errorMessage });
     }
   };
 
