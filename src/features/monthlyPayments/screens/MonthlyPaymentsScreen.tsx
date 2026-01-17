@@ -16,6 +16,9 @@ import { useToast } from '../../../shared/hooks/useToast';
 
 type MonthlyPaymentsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'MonthlyPayments'>;
 
+// Prefijo especial para identificar gastos creados desde la sección "Otros"
+const OTHER_PAYMENT_PREFIX = '__OTHER_PAYMENT__';
+
 export default function MonthlyPaymentsScreen() {
   const navigation = useNavigation<MonthlyPaymentsScreenNavigationProp>();
   const { 
@@ -91,9 +94,13 @@ export default function MonthlyPaymentsScreen() {
     return getMostUsedCategories();
   }, [categories]);
 
-  const filteredCategories = sortedCategories.filter(c => 
-    c.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
-  );
+  // Filtrar categorías: solo UUIDs válidos (longitud > 10) y que coincidan con la búsqueda
+  const filteredCategories = sortedCategories.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(categorySearchQuery.toLowerCase());
+    // Solo incluir categorías con UUIDs válidos (longitud > 10 caracteres, no IDs numéricos)
+    const isValidUUID = c.id && c.id.length > 10;
+    return matchesSearch && isValidUUID;
+  });
 
   useEffect(() => {
     loadRecurringServices();
@@ -136,7 +143,10 @@ export default function MonthlyPaymentsScreen() {
     }
 
     // Usar la categoría del servicio o las seleccionadas
-    const categoryIds = selectedCategoryIds.length > 0 ? selectedCategoryIds : (selectedService.category_id ? [selectedService.category_id] : []);
+    let categoryIds = selectedCategoryIds.length > 0 ? selectedCategoryIds : (selectedService.category_id ? [selectedService.category_id] : []);
+    
+    // Validar que todos los IDs de categorías sean UUIDs válidos (longitud > 10)
+    categoryIds = categoryIds.filter(id => id && id.length > 10);
 
     try {
       // Crear el gasto
@@ -228,16 +238,19 @@ export default function MonthlyPaymentsScreen() {
 
   const servicesTotal = getMonthlyServicesTotal(currentMonth, currentYear);
 
-  // Obtener gastos "Otros" del mes (gastos que no son de servicios ni tarjetas de crédito ni deudas)
-  // Mostramos solo el día del mes extraído de la fecha
+  // Obtener gastos "Otros" del mes (solo los que fueron creados desde esta pantalla)
+  // Identificamos los gastos "Otros" por un prefijo especial en la descripción
   const otherPayments = useMemo(() => {
     return expenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       const isCurrentMonth = expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
-      const isOtherPayment = !expense.serviceId && !expense.isCreditCardPayment && !expense.creditCardId;
+      // Solo incluir gastos que fueron creados desde "Otros" (tienen el prefijo especial)
+      const isOtherPayment = expense.description.startsWith(OTHER_PAYMENT_PREFIX);
       return isCurrentMonth && isOtherPayment;
     }).map(expense => ({
       ...expense,
+      // Remover el prefijo al mostrar
+      description: expense.description.replace(OTHER_PAYMENT_PREFIX, ''),
       dayOfMonth: new Date(expense.date).getDate()
     }));
   }, [expenses, currentMonth, currentYear]);
@@ -269,6 +282,13 @@ export default function MonthlyPaymentsScreen() {
       return;
     }
 
+    // Validar que todos los IDs de categorías sean UUIDs válidos (longitud > 10)
+    const validCategoryIds = otherSelectedCategoryIds.filter(id => id && id.length > 10);
+    if (validCategoryIds.length === 0) {
+      Alert.alert('Error', 'Por favor selecciona categorías válidas');
+      return;
+    }
+
     try {
       const amount = parseCurrencyInput(otherPaymentAmount);
       if (isNaN(amount) || amount <= 0) {
@@ -279,12 +299,13 @@ export default function MonthlyPaymentsScreen() {
       // Crear fecha con el día del mes del mes actual
       const paymentDate = new Date(currentYear, currentMonth, Math.min(day, new Date(currentYear, currentMonth + 1, 0).getDate()));
 
+      // Agregar prefijo especial para identificar que este gasto es de "Otros"
       await addExpense({
         amount,
-        description: otherPaymentDescription,
+        description: OTHER_PAYMENT_PREFIX + otherPaymentDescription,
         date: paymentDate.toISOString(),
         financialType: 'needs' as FinancialType,
-        categoryIds: otherSelectedCategoryIds,
+        categoryIds: validCategoryIds, // Usar solo IDs válidos
       });
 
       await loadExpenses();
@@ -308,9 +329,13 @@ export default function MonthlyPaymentsScreen() {
     }
   };
 
-  const filteredOtherCategories = sortedCategories.filter(c => 
-    c.name.toLowerCase().includes(otherCategorySearchQuery.toLowerCase())
-  );
+  // Filtrar categorías: solo UUIDs válidos (longitud > 10) y que coincidan con la búsqueda
+  const filteredOtherCategories = sortedCategories.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(otherCategorySearchQuery.toLowerCase());
+    // Solo incluir categorías con UUIDs válidos (longitud > 10 caracteres, no IDs numéricos)
+    const isValidUUID = c.id && c.id.length > 10;
+    return matchesSearch && isValidUUID;
+  });
 
   const styles = StyleSheet.create({
     container: {
