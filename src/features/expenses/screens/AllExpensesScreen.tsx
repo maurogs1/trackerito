@@ -33,13 +33,15 @@ type AllExpensesScreenNavigationProp = NativeStackNavigationProp<RootStackParamL
 
 export default function AllExpensesScreen() {
   const navigation = useNavigation<AllExpensesScreenNavigationProp>();
-  const { expenses, categories, preferences, removeExpense } = useStore();
+  const { getCurrentExpenses, categories, preferences, removeExpense } = useStore();
+  const expenses = getCurrentExpenses();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const { showSuccess, showError } = useToast();
 
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('all');
+  const [selectedFinancialTypes, setSelectedFinancialTypes] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Custom Date Range State
@@ -51,20 +53,30 @@ export default function AllExpensesScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
 
+  // Filters Modal
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
+
   // Filter expenses based on selected filters
   const filteredExpenses = useMemo(() => {
     let filtered = [...expenses];
 
-    // Filter by category
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(e => e.categoryIds && e.categoryIds.includes(selectedCategory));
+    // Filter by categories (multiple selection)
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter(e =>
+        e.categoryIds && e.categoryIds.some(catId => selectedCategories.includes(catId))
+      );
+    }
+
+    // Filter by financial types (multiple selection)
+    if (selectedFinancialTypes.length > 0) {
+      filtered = filtered.filter(e => selectedFinancialTypes.includes(e.financialType || 'unclassified'));
     }
 
     // Filter by period
     if (selectedPeriod !== 'all') {
       const now = new Date();
       let interval;
-      
+
       if (selectedPeriod === 'week') {
         interval = { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
       } else if (selectedPeriod === 'month') {
@@ -83,16 +95,51 @@ export default function AllExpensesScreen() {
       filtered = filtered.filter(e => {
         const expenseCategories = categories.filter(c => e.categoryIds?.includes(c.id));
         const categoryNames = expenseCategories.map(c => c.name).join(' ').toLowerCase();
-        
+
         return e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                categoryNames.includes(searchQuery.toLowerCase());
       });
     }
 
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [expenses, selectedCategory, selectedPeriod, searchQuery, customDateRange]);
+  }, [expenses, selectedCategories, selectedFinancialTypes, selectedPeriod, searchQuery, customDateRange, categories]);
 
   const totalFiltered = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  // Count active filters
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedCategories.length > 0) count += selectedCategories.length;
+    if (selectedPeriod !== 'all') count++;
+    if (selectedFinancialTypes.length > 0) count += selectedFinancialTypes.length;
+    return count;
+  }, [selectedCategories, selectedPeriod, selectedFinancialTypes]);
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSelectedCategories([]);
+    setSelectedPeriod('all');
+    setSelectedFinancialTypes([]);
+    setCustomDateRange({ start: null, end: null });
+  };
+
+  // Toggle category selection
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  // Toggle financial type selection
+  const toggleFinancialType = (type: string) => {
+    setSelectedFinancialTypes(prev =>
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
 
   // Calendar Logic
   const handleDayPress = (day: Date) => {
@@ -225,7 +272,87 @@ export default function AllExpensesScreen() {
       backgroundColor: currentTheme.card,
       borderBottomWidth: 1,
       borderBottomColor: currentTheme.border,
-      paddingBottom: 8,
+      paddingBottom: 12,
+    },
+    filterButtonRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 4,
+    },
+    filterButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: currentTheme.background,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+      gap: 8,
+    },
+    filterButtonActive: {
+      backgroundColor: currentTheme.primary,
+      borderColor: currentTheme.primary,
+    },
+    filterButtonText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: currentTheme.text,
+    },
+    filterButtonTextActive: {
+      color: '#FFFFFF',
+    },
+    filterBadge: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 10,
+      width: 20,
+      height: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    filterBadgeText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: currentTheme.primary,
+    },
+    clearFiltersButton: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+      backgroundColor: currentTheme.background,
+    },
+    clearFiltersText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: currentTheme.textSecondary,
+    },
+    activeFiltersSummary: {
+      marginTop: 12,
+      maxHeight: 80,
+    },
+    activeFiltersSummaryContent: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingRight: 16,
+    },
+    activeFilterChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: currentTheme.background,
+      borderWidth: 1.5,
+      borderColor: currentTheme.border,
+    },
+    activeFilterText: {
+      fontSize: 13,
+      fontWeight: '600',
     },
     searchContainer: {
       flexDirection: 'row',
@@ -261,25 +388,32 @@ export default function AllExpensesScreen() {
       gap: 8,
     },
     filterChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 20,
       backgroundColor: currentTheme.background,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: currentTheme.border,
+      minHeight: 42,
+      justifyContent: 'center',
     },
     filterChipActive: {
       backgroundColor: currentTheme.primary,
       borderColor: currentTheme.primary,
+      shadowColor: currentTheme.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 2,
     },
     filterChipText: {
-      fontSize: 13,
+      fontSize: 14,
       color: currentTheme.text,
-      fontWeight: '500',
+      fontWeight: '600',
     },
     filterChipTextActive: {
       color: '#FFFFFF',
-      fontWeight: '600',
+      fontWeight: '700',
     },
     compactSummary: {
       flexDirection: 'row',
@@ -540,6 +674,90 @@ export default function AllExpensesScreen() {
       fontWeight: '600',
       fontSize: 16,
     },
+    filtersModalContent: {
+      backgroundColor: currentTheme.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      maxHeight: '80%',
+      marginTop: 'auto',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 12,
+      elevation: 10,
+    },
+    filtersModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 20,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: currentTheme.border,
+    },
+    filtersModalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: currentTheme.text,
+    },
+    filtersModalBody: {
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+    },
+    modalFilterSection: {
+      marginBottom: 24,
+    },
+    modalFilterHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    modalFilterLabel: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: currentTheme.text,
+    },
+    modalFilterCount: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: currentTheme.primary,
+    },
+    filtersModalFooter: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderTopWidth: 1,
+      borderTopColor: currentTheme.border,
+    },
+    clearAllFiltersButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+      backgroundColor: currentTheme.background,
+      alignItems: 'center',
+    },
+    clearAllFiltersButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: currentTheme.textSecondary,
+    },
+    applyFiltersButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: currentTheme.primary,
+      alignItems: 'center',
+    },
+    applyFiltersButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
   });
 
   const periodFilters: { value: FilterPeriod; label: string }[] = [
@@ -554,6 +772,14 @@ export default function AllExpensesScreen() {
     ...categories.map(c => ({ value: c.id, label: c.name })),
   ];
 
+  const financialTypeFilters = [
+    { value: 'all', label: 'Todos', icon: 'apps' },
+    { value: 'needs', label: 'Necesidades', icon: 'nutrition' },
+    { value: 'wants', label: 'Deseos', icon: 'heart' },
+    { value: 'savings', label: 'Ahorros', icon: 'wallet' },
+    { value: 'unclassified', label: 'Sin clasificar', icon: 'help-circle' },
+  ];
+
   const handlePeriodSelect = (period: FilterPeriod) => {
     if (period === 'custom') {
       setIsCalendarVisible(true);
@@ -565,7 +791,7 @@ export default function AllExpensesScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header with Filters */}
+      {/* Header with Search and Filter Button */}
       <View style={styles.header}>
         {/* Search Bar */}
         <View style={styles.searchContainer}>
@@ -584,71 +810,84 @@ export default function AllExpensesScreen() {
           )}
         </View>
 
-        {/* Period Filter */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Período</Text>
-          <View style={styles.filterRow}>
-            {periodFilters.map(filter => (
-              <TouchableOpacity
-                key={filter.value}
-                style={[
-                  styles.filterChip,
-                  selectedPeriod === filter.value && styles.filterChipActive,
-                ]}
-                onPress={() => handlePeriodSelect(filter.value)}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    selectedPeriod === filter.value && styles.filterChipTextActive,
-                  ]}
-                >
-                  {filter.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        {/* Filter Button */}
+        <View style={styles.filterButtonRow}>
+          <TouchableOpacity
+            style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
+            onPress={() => setShowFiltersModal(true)}
+          >
+            <Ionicons
+              name="options-outline"
+              size={20}
+              color={activeFiltersCount > 0 ? '#FFFFFF' : currentTheme.text}
+            />
+            <Text style={[styles.filterButtonText, activeFiltersCount > 0 && styles.filterButtonTextActive]}>
+              Filtros
+            </Text>
+            {activeFiltersCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {activeFiltersCount > 0 && (
+            <TouchableOpacity style={styles.clearFiltersButton} onPress={clearAllFilters}>
+              <Text style={styles.clearFiltersText}>Limpiar</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Category Filter */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Categoría</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.filterRow}>
-              {categoryFilters.map(filter => {
-                const category = categories.find(c => c.id === filter.value);
-                return (
-                  <TouchableOpacity
-                    key={filter.value}
-                    style={[
-                      styles.filterChip,
-                      selectedCategory === filter.value && styles.filterChipActive,
-                    ]}
-                    onPress={() => setSelectedCategory(filter.value)}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      {category && (
-                        <Ionicons
-                          name={category.icon as any}
-                          size={14}
-                          color={selectedCategory === filter.value ? '#FFFFFF' : category.color}
-                        />
-                      )}
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          selectedCategory === filter.value && styles.filterChipTextActive,
-                        ]}
-                      >
-                        {filter.label}
-                      </Text>
-                    </View>
+        {/* Active Filters Summary */}
+        {activeFiltersCount > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.activeFiltersSummary}
+            contentContainerStyle={styles.activeFiltersSummaryContent}
+          >
+            {selectedPeriod !== 'all' && (
+              <View style={[styles.activeFilterChip, { backgroundColor: currentTheme.primary + '15', borderColor: currentTheme.primary }]}>
+                <Ionicons name="calendar-outline" size={14} color={currentTheme.primary} />
+                <Text style={[styles.activeFilterText, { color: currentTheme.primary }]}>
+                  {periodFilters.find(f => f.value === selectedPeriod)?.label}
+                </Text>
+                <TouchableOpacity onPress={() => { setSelectedPeriod('all'); setCustomDateRange({ start: null, end: null }); }}>
+                  <Ionicons name="close-circle" size={16} color={currentTheme.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {selectedFinancialTypes.map(type => {
+              const typeFilter = financialTypeFilters.find(f => f.value === type);
+              return (
+                <View key={type} style={[styles.activeFilterChip, { backgroundColor: '#FF9800' + '15', borderColor: '#FF9800' }]}>
+                  <Ionicons name={typeFilter?.icon as any} size={14} color="#FF9800" />
+                  <Text style={[styles.activeFilterText, { color: '#FF9800' }]}>
+                    {typeFilter?.label}
+                  </Text>
+                  <TouchableOpacity onPress={() => toggleFinancialType(type)}>
+                    <Ionicons name="close-circle" size={16} color="#FF9800" />
                   </TouchableOpacity>
-                );
-              })}
-            </View>
+                </View>
+              );
+            })}
+            {selectedCategories.map(catId => {
+              const category = categories.find(c => c.id === catId);
+              if (!category) return null;
+              return (
+                <View key={catId} style={[styles.activeFilterChip, { backgroundColor: category.color + '15', borderColor: category.color }]}>
+                  <Ionicons name={category.icon as any} size={14} color={category.color} />
+                  <Text style={[styles.activeFilterText, { color: category.color }]}>
+                    {category.name}
+                  </Text>
+                  <TouchableOpacity onPress={() => toggleCategory(catId)}>
+                    <Ionicons name="close-circle" size={16} color={category.color} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </ScrollView>
-        </View>
+        )}
       </View>
 
       {/* Compact Summary Bar */}
@@ -739,6 +978,163 @@ export default function AllExpensesScreen() {
         <View style={styles.modalOverlay}>
           {renderCalendar()}
         </View>
+      </Modal>
+
+      {/* Filters Modal */}
+      <Modal
+        visible={showFiltersModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFiltersModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowFiltersModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.filtersModalContent}>
+                <View style={styles.filtersModalHeader}>
+                  <Text style={styles.filtersModalTitle}>Filtros</Text>
+                  <TouchableOpacity onPress={() => setShowFiltersModal(false)}>
+                    <Ionicons name="close" size={24} color={currentTheme.text} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} style={styles.filtersModalBody}>
+                  {/* Period Filter */}
+                  <View style={styles.modalFilterSection}>
+                    <Text style={styles.modalFilterLabel}>Período</Text>
+                    <View style={styles.filterRow}>
+                      {periodFilters.map(filter => (
+                        <TouchableOpacity
+                          key={filter.value}
+                          style={[
+                            styles.filterChip,
+                            selectedPeriod === filter.value && styles.filterChipActive,
+                          ]}
+                          onPress={() => handlePeriodSelect(filter.value)}
+                        >
+                          <Text
+                            style={[
+                              styles.filterChipText,
+                              selectedPeriod === filter.value && styles.filterChipTextActive,
+                            ]}
+                          >
+                            {filter.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Financial Type Filter */}
+                  <View style={styles.modalFilterSection}>
+                    <View style={styles.modalFilterHeader}>
+                      <Text style={styles.modalFilterLabel}>Tipo de Gasto</Text>
+                      {selectedFinancialTypes.length > 0 && (
+                        <Text style={styles.modalFilterCount}>{selectedFinancialTypes.length} seleccionado{selectedFinancialTypes.length > 1 ? 's' : ''}</Text>
+                      )}
+                    </View>
+                    <View style={styles.filterRow}>
+                      {financialTypeFilters.map(filter => {
+                        const isSelected = selectedFinancialTypes.includes(filter.value);
+                        return (
+                          <TouchableOpacity
+                            key={filter.value}
+                            style={[
+                              styles.filterChip,
+                              isSelected && styles.filterChipActive,
+                            ]}
+                            onPress={() => toggleFinancialType(filter.value)}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Ionicons
+                                name={filter.icon as any}
+                                size={16}
+                                color={isSelected ? '#FFFFFF' : currentTheme.text}
+                              />
+                              <Text
+                                style={[
+                                  styles.filterChipText,
+                                  isSelected && styles.filterChipTextActive,
+                                ]}
+                              >
+                                {filter.label}
+                              </Text>
+                              {isSelected && (
+                                <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* Category Filter */}
+                  <View style={styles.modalFilterSection}>
+                    <View style={styles.modalFilterHeader}>
+                      <Text style={styles.modalFilterLabel}>Categorías</Text>
+                      {selectedCategories.length > 0 && (
+                        <Text style={styles.modalFilterCount}>{selectedCategories.length} seleccionada{selectedCategories.length > 1 ? 's' : ''}</Text>
+                      )}
+                    </View>
+                    <View style={styles.filterRow}>
+                      {categories.map(category => {
+                        const isSelected = selectedCategories.includes(category.id);
+                        return (
+                          <TouchableOpacity
+                            key={category.id}
+                            style={[
+                              styles.filterChip,
+                              isSelected && [styles.filterChipActive, { backgroundColor: category.color, borderColor: category.color }],
+                            ]}
+                            onPress={() => toggleCategory(category.id)}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Ionicons
+                                name={category.icon as any}
+                                size={16}
+                                color={isSelected ? '#FFFFFF' : category.color}
+                              />
+                              <Text
+                                style={[
+                                  styles.filterChipText,
+                                  isSelected && styles.filterChipTextActive,
+                                ]}
+                              >
+                                {category.name}
+                              </Text>
+                              {isSelected && (
+                                <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </ScrollView>
+
+                <View style={styles.filtersModalFooter}>
+                  <TouchableOpacity
+                    style={styles.clearAllFiltersButton}
+                    onPress={() => {
+                      clearAllFilters();
+                      setShowFiltersModal(false);
+                    }}
+                  >
+                    <Text style={styles.clearAllFiltersButtonText}>Limpiar Todo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.applyFiltersButton}
+                    onPress={() => setShowFiltersModal(false)}
+                  >
+                    <Text style={styles.applyFiltersButtonText}>Aplicar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* Delete Confirmation Modal */}

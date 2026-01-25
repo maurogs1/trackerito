@@ -17,36 +17,50 @@ export default function CreditCardScreen() {
     const navigation = useNavigation<CreditCardScreenNavigationProp>();
     const route = useRoute<CreditCardScreenRouteProp>();
     const { cardId, cardName } = route.params;
-    const { getMonthlyConsumption, loadCreditCardPurchases, creditCardPurchases, preferences } = useStore();
+    const { getCreditCardMonthlyExpenses, payCreditCardStatement, loadExpenses, preferences } = useStore();
     const isDark = preferences.theme === 'dark';
     const currentTheme = isDark ? theme.dark : theme.light;
 
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [summary, setSummary] = useState(getMonthlyConsumption(cardId, currentDate.getMonth(), currentDate.getFullYear()));
+
+    const monthlyExpenses = getCreditCardMonthlyExpenses(
+        cardId,
+        currentDate.getMonth(),
+        currentDate.getFullYear()
+    );
+
+    const totalAmount = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
 
     useEffect(() => {
-        loadCreditCardPurchases();
+        loadExpenses();
         navigation.setOptions({ title: cardName });
     }, []);
-
-    useEffect(() => {
-        // Refresh summary when purchases change or date changes
-        setSummary(getMonthlyConsumption(cardId, currentDate.getMonth(), currentDate.getFullYear()));
-    }, [creditCardPurchases, currentDate]);
 
     const changeMonth = (increment: number) => {
         const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + increment, 1);
         setCurrentDate(newDate);
     };
 
-    const handlePayCard = () => {
-        // Navigate to AddExpense with pre-filled data
-        navigation.navigate('AddExpense', {
-            amount: summary.totalAmount,
-            description: `Resumen ${cardName} - ${format(currentDate, 'MMMM yyyy', { locale: es })}`,
-            isCreditCardPayment: true,
-            creditCardId: cardId
-        });
+    const handlePayCard = async () => {
+        if (monthlyExpenses.length === 0) {
+            Alert.alert('Sin consumos', 'No hay consumos para pagar este mes');
+            return;
+        }
+
+        Alert.alert(
+            'Pagar Resumen',
+            `¿Confirmas el pago de ${formatCurrency(totalAmount)}?`,
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Pagar',
+                    onPress: async () => {
+                        await payCreditCardStatement(cardId, currentDate.getMonth(), currentDate.getFullYear());
+                        Alert.alert('Éxito', 'Resumen pagado correctamente');
+                    },
+                },
+            ]
+        );
     };
 
     const styles = StyleSheet.create({
@@ -157,24 +171,52 @@ export default function CreditCardScreen() {
                 </View>
                 
                 <Text style={styles.totalLabel}>Total a Pagar</Text>
-                <Text style={styles.totalAmount}>{formatCurrency(summary.totalAmount)}</Text>
+                <Text style={styles.totalAmount}>{formatCurrency(totalAmount)}</Text>
 
-                <TouchableOpacity style={styles.payButton} onPress={handlePayCard}>
-                    <Text style={styles.payButtonText}>Pagar Resumen</Text>
+                <TouchableOpacity
+                    style={[styles.payButton, monthlyExpenses.length === 0 && { opacity: 0.5 }]}
+                    onPress={handlePayCard}
+                    disabled={monthlyExpenses.length === 0}
+                >
+                    <Text style={styles.payButtonText}>
+                        Pagar Resumen {totalAmount > 0 && `(${formatCurrency(totalAmount)})`}
+                    </Text>
                 </TouchableOpacity>
             </View>
 
             <FlatList
-                data={summary.items}
-                keyExtractor={(item) => item.purchaseId + item.installmentNumber}
+                data={monthlyExpenses}
+                keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.listContent}
                 renderItem={({ item }) => (
                     <View style={styles.itemCard}>
-                        <View>
+                        <View style={{ flex: 1 }}>
                             <Text style={styles.itemDescription}>{item.description}</Text>
-                            <Text style={styles.itemInstallment}>
-                                Cuota {item.installmentNumber}/{item.totalInstallments}
-                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                {item.installmentNumber && (
+                                    <Text style={styles.itemInstallment}>
+                                        Cuota {item.installmentNumber}/{item.installments}
+                                    </Text>
+                                )}
+                                <View
+                                    style={{
+                                        paddingHorizontal: 8,
+                                        paddingVertical: 2,
+                                        borderRadius: 8,
+                                        backgroundColor: item.paymentStatus === 'paid' ? currentTheme.success + '20' : currentTheme.warning + '20',
+                                    }}
+                                >
+                                    <Text
+                                        style={{
+                                            fontSize: 11,
+                                            fontWeight: '500',
+                                            color: item.paymentStatus === 'paid' ? currentTheme.success : currentTheme.warning,
+                                        }}
+                                    >
+                                        {item.paymentStatus === 'paid' ? '✓ Pagado' : '○ Pendiente'}
+                                    </Text>
+                                </View>
+                            </View>
                         </View>
                         <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
                     </View>

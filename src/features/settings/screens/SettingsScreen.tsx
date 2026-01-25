@@ -9,7 +9,7 @@ type SettingsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList
 
 export default function SettingsScreen() {
   const navigation = useNavigation<SettingsScreenNavigationProp>();
-  const { preferences, toggleTheme, isDemoMode, toggleDemoMode } = useStore();
+  const { preferences, toggleTheme, user } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
 
@@ -63,24 +63,6 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Datos</Text>
-        <View style={styles.row}>
-          <View>
-            <Text style={styles.label}>Modo Demostración</Text>
-            <Text style={{ fontSize: 12, color: currentTheme.textSecondary }}>
-              {isDemoMode ? 'Usando datos simulados' : 'Usando datos reales'}
-            </Text>
-          </View>
-          <Switch
-            value={isDemoMode}
-            onValueChange={async () => await toggleDemoMode()}
-            trackColor={{ false: '#767577', true: currentTheme.primary }}
-            thumbColor={isDemoMode ? '#FFFFFF' : '#f4f3f4'}
-          />
-        </View>
-      </View>
-
-      <View style={styles.section}>
         <Text style={styles.sectionTitle}>General</Text>
         <View style={styles.row}>
           <Text style={styles.label}>Moneda</Text>
@@ -97,6 +79,12 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Cuenta</Text>
+        {user?.email && (
+          <View style={styles.row}>
+            <Text style={styles.label}>Email</Text>
+            <Text style={styles.value}>{user.email}</Text>
+          </View>
+        )}
         <TouchableOpacity 
           style={[styles.row, { paddingVertical: 12 }]} 
           onPress={async () => {

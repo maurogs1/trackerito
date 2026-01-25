@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
@@ -11,7 +11,12 @@ import { formatCurrencyDisplay, formatCurrencyInput, parseCurrencyInput } from '
 type RiskProfile = 'low' | 'medium' | 'high';
 
 export default function GoalsScreen() {
-  const { goals, addGoal, preferences } = useStore();
+  const { goals, addGoal, loadGoals, preferences } = useStore();
+
+  // Load goals when screen mounts
+  useEffect(() => {
+    loadGoals();
+  }, []);
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
 

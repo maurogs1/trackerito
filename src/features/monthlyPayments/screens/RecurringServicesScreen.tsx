@@ -61,9 +61,9 @@ export default function RecurringServicesScreen() {
 
   const handleSelectPredefinedService = (service: PredefinedService) => {
     setSelectedPredefinedService(service);
-    
-    // Si es "Otros", dejar campos vacíos para que el usuario los complete
-    if (service.name === 'Otros') {
+
+    // Si es personalizado, dejar campos vacíos para que el usuario los complete
+    if (service.name === 'Agregar Personalizado' || service.name === 'Otros') {
       setServiceName('');
       setServiceAmount('');
       setServiceDay('15');
@@ -119,7 +119,7 @@ export default function RecurringServicesScreen() {
       });
 
       if (updatedService) {
-        showSuccess(`Servicio "${serviceName}" actualizado correctamente`);
+        showSuccess(`"${serviceName}" actualizado correctamente`);
         setShowAddModal(false);
         resetForm();
         loadRecurringServices();
@@ -137,7 +137,7 @@ export default function RecurringServicesScreen() {
       });
 
       if (newService) {
-        showSuccess(`Servicio "${serviceName}" agregado correctamente`);
+        showSuccess(`"${serviceName}" agregado correctamente`);
         setShowAddModal(false);
         resetForm();
         loadRecurringServices();
@@ -166,16 +166,16 @@ export default function RecurringServicesScreen() {
 
   const handleDeleteService = (id: string, name: string) => {
     Alert.alert(
-      'Eliminar Servicio',
+      'Eliminar Gasto Fijo',
       `¿Estás seguro de que quieres eliminar "${name}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Eliminar', 
-          style: 'destructive', 
+        {
+          text: 'Eliminar',
+          style: 'destructive',
           onPress: async () => {
             await deleteRecurringService(id);
-            showSuccess(`Servicio "${name}" eliminado`);
+            showSuccess(`"${name}" eliminado`);
             loadRecurringServices();
           }
         },
@@ -425,17 +425,17 @@ export default function RecurringServicesScreen() {
           />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar servicios (ej: Netflix, Luz, Internet...)"
+            placeholder="Buscar (ej: Alquiler, Netflix, Luz, Gym...)"
             placeholderTextColor={currentTheme.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
 
-        {/* Servicios Configurados */}
+        {/* Gastos Fijos Configurados */}
         {recurringServices.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Mis Servicios</Text>
+            <Text style={styles.sectionTitle}>Mis Gastos Fijos</Text>
             {recurringServices.map(service => (
               <TouchableOpacity
                 key={service.id}
@@ -466,16 +466,16 @@ export default function RecurringServicesScreen() {
           </>
         )}
 
-        {/* Servicios Predefinidos */}
+        {/* Gastos Fijos Predefinidos */}
         <Text style={styles.sectionTitle}>
-          {searchQuery ? `Resultados (${filteredServices.length})` : 'Agregar Servicio'}
+          {searchQuery ? `Resultados (${filteredServices.length})` : 'Agregar Gasto Fijo'}
         </Text>
         
         {filteredServices.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="search-outline" size={48} color={currentTheme.textSecondary} />
             <Text style={styles.emptyText}>
-              No se encontraron servicios con "{searchQuery}"
+              No se encontraron gastos con "{searchQuery}"
             </Text>
           </View>
         ) : (
@@ -521,7 +521,7 @@ export default function RecurringServicesScreen() {
             <TouchableWithoutFeedback onPress={() => {}}>
               <ScrollView style={styles.modalContent}>
             <Text style={styles.modalTitle}>
-              {editingService ? 'Editar Servicio' : 'Configurar Servicio'}
+              {editingService ? 'Editar Gasto Fijo' : 'Configurar Gasto Fijo'}
             </Text>
 
             <Text style={styles.inputLabel}>Nombre *</Text>
@@ -529,10 +529,10 @@ export default function RecurringServicesScreen() {
               style={styles.input}
               value={serviceName}
               onChangeText={setServiceName}
-              placeholder={selectedPredefinedService?.name === 'Otros' ? "Ej: Suscripción X, Servicio Y..." : selectedPredefinedService?.name || "Nombre del servicio"}
+              placeholder={selectedPredefinedService?.name === 'Agregar Personalizado' || selectedPredefinedService?.name === 'Otros' ? "Ej: Alquiler, Seguro, Suscripción..." : selectedPredefinedService?.name || "Nombre del gasto"}
               placeholderTextColor={currentTheme.textSecondary}
             />
-            {selectedPredefinedService && selectedPredefinedService.name !== 'Otros' && (
+            {selectedPredefinedService && selectedPredefinedService.name !== 'Agregar Personalizado' && selectedPredefinedService.name !== 'Otros' && (
               <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 4 }}>
                 Puedes editar el nombre si lo deseas
               </Text>
@@ -547,7 +547,7 @@ export default function RecurringServicesScreen() {
               placeholderTextColor={currentTheme.textSecondary}
               keyboardType="numeric"
             />
-            {selectedPredefinedService && selectedPredefinedService.commonAmount && selectedPredefinedService.name !== 'Otros' && (
+            {selectedPredefinedService && selectedPredefinedService.commonAmount && selectedPredefinedService.name !== 'Agregar Personalizado' && selectedPredefinedService.name !== 'Otros' && (
               <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 4 }}>
                 Monto sugerido: {formatCurrencyDisplay(selectedPredefinedService.commonAmount)}. Puedes cambiarlo según tu caso.
               </Text>
@@ -569,7 +569,7 @@ export default function RecurringServicesScreen() {
               keyboardType="number-pad"
               maxLength={2}
             />
-            {selectedPredefinedService && selectedPredefinedService.commonDay && selectedPredefinedService.name !== 'Otros' && (
+            {selectedPredefinedService && selectedPredefinedService.commonDay && selectedPredefinedService.name !== 'Agregar Personalizado' && selectedPredefinedService.name !== 'Otros' && (
               <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 4 }}>
                 Día sugerido: {selectedPredefinedService.commonDay}. Ajusta según tu fecha de vencimiento.
               </Text>

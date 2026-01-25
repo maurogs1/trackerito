@@ -1,12 +1,18 @@
 import { PredefinedService } from './types';
 
-// Servicios predefinidos con logos y categorías
+// Gastos fijos predefinidos con logos y categorías
 export const PREDEFINED_SERVICES: PredefinedService[] = [
-  // Servicio "Otros" al principio para que el usuario pueda crear servicios personalizados
-  { name: 'Otros', icon: 'add-circle', color: '#9C27B0', category: 'Personalizado' },
-  
-  // Servicios Públicos - Utilidades
-  { name: 'Luz', icon: 'flash', color: '#FFC107', category: 'Servicios Públicos', commonAmount: 8000, commonDay: 15 },
+  // Opción personalizada al principio para gastos que no están en la lista
+  { name: 'Agregar Personalizado', icon: 'add-circle', color: '#9C27B0', category: 'Personalizado' },
+
+  // Hogar - Primero ya que son los gastos más comunes
+  { name: 'Alquiler', icon: 'home', color: '#795548', category: 'Hogar', commonAmount: 200000, commonDay: 1 },
+  { name: 'Expensas', icon: 'business', color: '#607D8B', category: 'Hogar', commonAmount: 50000, commonDay: 10 },
+  { name: 'Limpieza', icon: 'sparkles', color: '#00BCD4', category: 'Hogar', commonAmount: 40000, commonDay: 15 },
+  { name: 'Jardinería', icon: 'leaf', color: '#4CAF50', category: 'Hogar', commonAmount: 20000, commonDay: 10 },
+
+  // Servicios Públicos
+  { name: 'Luz', icon: 'flash', color: '#FFC107', category: 'Servicios Públicos', commonAmount: 25000, commonDay: 15 },
   { name: 'Agua', icon: 'water', color: '#2196F3', category: 'Servicios Públicos', commonAmount: 5000, commonDay: 10 },
   { name: 'Gas', icon: 'flame', color: '#FF5722', category: 'Servicios Públicos', commonAmount: 6000, commonDay: 5 },
   
@@ -63,12 +69,8 @@ export const PREDEFINED_SERVICES: PredefinedService[] = [
   { name: 'Psicólogo', icon: 'person', color: '#9C27B0', category: 'Salud', commonAmount: 8000, commonDay: 15 },
   { name: 'Dentista', icon: 'medical', color: '#00BCD4', category: 'Salud', commonAmount: 5000, commonDay: 20 },
   
-  // Otros Servicios
-  { name: 'Limpieza', icon: 'sparkles', color: '#00BCD4', category: 'Hogar', commonAmount: 15000, commonDay: 15 },
-  { name: 'Jardinería', icon: 'leaf', color: '#4CAF50', category: 'Hogar', commonAmount: 8000, commonDay: 10 },
-  { name: 'Alquiler', icon: 'home', color: '#795548', category: 'Hogar', commonAmount: 80000, commonDay: 5 },
-  { name: 'Expensas', icon: 'business', color: '#607D8B', category: 'Hogar', commonAmount: 15000, commonDay: 10 },
-  { name: 'Patente de Vehículo', icon: 'car', color: '#2196F3', category: 'Vehículos', commonAmount: 30000, commonDay: 1 },
+  // Vehículos
+  { name: 'Patente de Vehículo', icon: 'car', color: '#2196F3', category: 'Vehículos', commonAmount: 50000, commonDay: 1 },
   { name: 'Cuota de Auto', icon: 'car-sport', color: '#F44336', category: 'Vehículos', commonDay: 10 },
   { name: 'Cuota de Moto', icon: 'bicycle', color: '#FF9800', category: 'Vehículos', commonDay: 10 },
 ];

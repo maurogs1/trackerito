@@ -16,7 +16,12 @@ interface Percentages {
 
 export default function BudgetsScreen() {
   const navigation = useNavigation();
-  const { preferences, categories, budgets, setCategoryBudget, expenses } = useStore();
+  const { preferences, categories, budgets, loadBudgets, setCategoryBudget, expenses } = useStore();
+
+  // Load budgets when screen mounts
+  useEffect(() => {
+    loadBudgets();
+  }, []);
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
 

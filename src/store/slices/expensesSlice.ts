@@ -1,30 +1,28 @@
 import { StateCreator } from 'zustand';
 import { Expense, ExpenseSummary } from '../../features/expenses/types';
-import { mockApi } from '../../services/mockApi';
 import { startOfMonth, subMonths, isSameMonth, getDaysInMonth, getDate } from 'date-fns';
 import { getUserFriendlyMessage, logError } from '../../shared/utils/errorHandler';
 
+// Helper function to sort expenses by date (newest first)
+const sortExpensesByDate = (expenses: Expense[]): Expense[] => {
+  return [...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+};
+
 export interface ExpensesSlice {
   expenses: Expense[];
-  
+
   loadExpenses: () => Promise<void>;
-  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<void>;
+  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<Expense | null>;
+  addExpenseWithInstallments: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<void>;
   updateExpense: (id: string, expense: Partial<Omit<Expense, 'id' | 'createdAt'>>) => Promise<void>;
   removeExpense: (id: string) => Promise<void>;
-  resetToMockData: () => void;
+  payCreditCardStatement: (cardId: string, month: number, year: number, paymentAmount?: number) => Promise<void>;
+  getExpenseInstallments: (parentExpenseId: string) => Expense[];
+  getCreditCardMonthlyExpenses: (cardId: string, month: number, year: number) => Expense[];
+  getCurrentExpenses: () => Expense[];
+  getUpcomingExpenses: () => Expense[];
   getSummary: () => ExpenseSummary;
 }
-
-// Mock data generator
-const getMockExpenses = (): Expense[] => [
-  { id: '1', amount: 15000, categoryIds: ['1'], description: 'Compra semanal', date: new Date().toISOString(), createdAt: new Date().toISOString() },
-  { id: '2', amount: 4500, categoryIds: ['2'], description: 'Cine con amigos', date: new Date(Date.now() - 86400000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '3', amount: 3200, categoryIds: ['3'], description: 'Uber al trabajo', date: new Date(Date.now() - 172800000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '4', amount: 12000, categoryIds: ['4'], description: 'Farmacia', date: new Date(Date.now() - 259200000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '5', amount: 8500, categoryIds: ['5'], description: 'Cena romántica', date: new Date(Date.now() - 345600000).toISOString(), createdAt: new Date().toISOString() },
-  { id: '6', amount: 60000, categoryIds: ['6'], description: 'Alquiler', date: startOfMonth(new Date()).toISOString(), createdAt: new Date().toISOString() },
-  { id: '7', amount: 2500, categoryIds: ['7'], description: 'Starbucks', date: new Date().toISOString(), createdAt: new Date().toISOString() },
-];
 
 export const createExpensesSlice: StateCreator<
   ExpensesSlice,
@@ -32,10 +30,9 @@ export const createExpensesSlice: StateCreator<
   [],
   ExpensesSlice
 > = (set, get) => ({
-  expenses: [], // Start empty, load based on mode
+  expenses: [],
 
   loadExpenses: async () => {
-    const isDemoMode = (get() as any).isDemoMode;
     set({ isLoading: true, error: null } as any);
     
     try {
@@ -54,9 +51,21 @@ export const createExpensesSlice: StateCreator<
           const loadedExpenses = (data || []).map((item: any) => ({
             ...item,
             amount: Number(item.amount),
-            categoryIds: item.expense_categories 
+            categoryIds: item.expense_categories
               ? item.expense_categories.map((ec: any) => ec.category_id)
-              : [] 
+              : [],
+            // Mapear nuevos campos desde snake_case a camelCase (con defaults para compatibilidad)
+            paymentMethod: item.payment_method || 'cash',
+            paymentStatus: item.payment_status || 'paid',
+            installmentNumber: item.installment_number || 1,
+            installments: item.installments || 1,
+            parentExpenseId: item.parent_expense_id || undefined,
+            totalAmount: item.total_amount ? Number(item.total_amount) : undefined,
+            isParent: item.is_parent || false,
+            creditCardId: item.credit_card_id,
+            isCreditCardPayment: item.is_credit_card_payment,
+            serviceId: item.service_id,
+            debtId: item.debt_id,
           }));
           set({ expenses: loadedExpenses, isLoading: false, error: null } as any);
         }
@@ -70,10 +79,7 @@ export const createExpensesSlice: StateCreator<
   addExpense: async (expenseData) => {
     set({ isLoading: true, error: null } as any);
     try {
-      const isDemoMode = (get() as any).isDemoMode;
-      
-        // Real mode - Supabase generates the ID
-        const { supabase } = await import('../../services/supabase');
+      const { supabase } = await import('../../services/supabase');
         const user = (get() as any).user;
         
         console.log('Current user:', user);
@@ -95,7 +101,8 @@ export const createExpensesSlice: StateCreator<
           user_id: user.id,
           credit_card_id: expenseData.creditCardId,
           is_credit_card_payment: expenseData.isCreditCardPayment,
-          service_id: expenseData.serviceId
+          service_id: expenseData.serviceId,
+          debt_id: expenseData.debtId
         };
         
         console.log('Inserting expense:', expenseToInsert);
@@ -115,26 +122,41 @@ export const createExpensesSlice: StateCreator<
 
         // Insert into junction table
         if (expenseData.categoryIds && expenseData.categoryIds.length > 0) {
-          const junctionData = expenseData.categoryIds.map(catId => ({
-            expense_id: newExpenseId,
-            category_id: catId
-          }));
+          // Filter out any invalid category IDs (mock data with short IDs)
+          const validCategoryIds = expenseData.categoryIds.filter(catId => {
+            // UUID format check
+            return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(catId);
+          });
 
-          const { error: junctionError } = await supabase
-            .from('expense_categories')
-            .insert(junctionData);
+          if (validCategoryIds.length === 0) {
+            console.warn('No valid category IDs found, skipping category association');
+          } else {
+            const junctionData = validCategoryIds.map(catId => ({
+              expense_id: newExpenseId,
+              category_id: catId
+            }));
 
-          if (junctionError) {
-            logError(junctionError, 'addExpense-categories');
-            // We might want to delete the expense if this fails, but for now let's keep it
+            const { error: junctionError } = await supabase
+              .from('expense_categories')
+              .insert(junctionData);
+
+            if (junctionError) {
+              logError(junctionError, 'addExpense-categories');
+              // We might want to delete the expense if this fails, but for now let's keep it
+            }
           }
         }
 
         // Increment usage count for ALL selected categories
         try {
-          // We do this one by one or we could write a stored procedure. 
+          // Filter valid category IDs
+          const validCategoryIds = expenseData.categoryIds.filter(catId =>
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(catId)
+          );
+
+          // We do this one by one or we could write a stored procedure.
           // For simplicity/speed in this context, loop is fine for small N.
-          for (const catId of expenseData.categoryIds) {
+          for (const catId of validCategoryIds) {
              const { data: catData, error: catError } = await supabase
               .from('categories')
               .select('usage_count')
@@ -165,26 +187,30 @@ export const createExpensesSlice: StateCreator<
           creditCardId: data[0].credit_card_id,
           isCreditCardPayment: data[0].is_credit_card_payment,
           serviceId: data[0].service_id,
+          debtId: data[0].debt_id,
         };
-        
+
         set((state) => {
           const categories = (state as any).categories || [];
-          const updatedCategories = categories.map((c: any) => 
+          const updatedCategories = categories.map((c: any) =>
             expenseData.categoryIds.includes(c.id)
-              ? { ...c, usageCount: (c.usageCount || 0) + 1 } 
+              ? { ...c, usageCount: (c.usageCount || 0) + 1 }
               : c
           );
 
-          return { 
-            expenses: [savedExpense, ...state.expenses],
+          return {
+            expenses: sortExpensesByDate([savedExpense, ...state.expenses]),
             categories: updatedCategories,
-            isLoading: false 
+            isLoading: false
           } as any;
         });
+
+        return savedExpense;
     } catch (error) {
       logError(error, 'addExpense');
       const errorMessage = getUserFriendlyMessage(error, 'expense');
       set({ error: errorMessage, isLoading: false } as any);
+      return null;
     }
   },
 
@@ -193,9 +219,7 @@ export const createExpensesSlice: StateCreator<
   updateExpense: async (id, expenseData) => {
     set({ isLoading: true, error: null } as any);
     try {
-      const isDemoMode = (get() as any).isDemoMode;
-      
-        const { supabase } = await import('../../services/supabase');
+      const { supabase } = await import('../../services/supabase');
         
         // 1. Update expenses table
         const updateData: any = {};
@@ -237,12 +261,16 @@ export const createExpensesSlice: StateCreator<
         }
 
         // 3. Update local state
-        set((state) => ({
-          expenses: state.expenses.map(e => 
+        set((state) => {
+          const updatedExpenses = state.expenses.map(e =>
             e.id === id ? { ...e, ...expenseData } : e
-          ),
-          isLoading: false
-        } as any));
+          );
+          // Re-sort if date was changed
+          return {
+            expenses: expenseData.date ? sortExpensesByDate(updatedExpenses) : updatedExpenses,
+            isLoading: false
+          } as any;
+        });
     } catch (error) {
       logError(error, 'updateExpense');
       const errorMessage = getUserFriendlyMessage(error, 'update');
@@ -277,34 +305,440 @@ export const createExpensesSlice: StateCreator<
     }
   },
 
-  resetToMockData: () => {
-    set({ expenses: getMockExpenses() });
+  addExpenseWithInstallments: async (expenseData) => {
+    set({ isLoading: true, error: null } as any);
+    try {
+      const { supabase } = await import('../../services/supabase');
+      const user = (get() as any).user;
+
+      if (!user || !user.id) {
+        const errorMsg = getUserFriendlyMessage(new Error('No user authenticated'), 'expense');
+        logError(new Error('No user authenticated'), 'addExpenseWithInstallments');
+        set({ error: errorMsg, isLoading: false } as any);
+        throw new Error(errorMsg);
+      }
+
+      const installments = expenseData.installments || 1;
+      const totalAmount = expenseData.amount;
+      // Redondear a 2 decimales para evitar problemas de precisión
+      const installmentAmount = Math.round((totalAmount / installments) * 100) / 100;
+
+      // 1. Crear gasto PADRE (metadata)
+      const parentExpenseData = {
+        amount: 0, // El padre tiene amount = 0 (es solo metadata)
+        description: expenseData.description,
+        date: expenseData.date,
+        financial_type: expenseData.financialType || 'unclassified',
+        user_id: user.id,
+        payment_method: expenseData.paymentMethod || 'cash',
+        payment_status: 'paid',
+        installments: installments,
+        installment_number: 1,
+        total_amount: totalAmount,
+        is_parent: true,
+        credit_card_id: expenseData.creditCardId,
+        service_id: expenseData.serviceId,
+      };
+
+      const { data: parentData, error: parentError } = await supabase
+        .from('expenses')
+        .insert([parentExpenseData])
+        .select();
+
+      if (parentError) {
+        logError(parentError, 'addExpenseWithInstallments-parent');
+        throw parentError;
+      }
+
+      const parentExpenseId = parentData[0].id;
+
+      // 2. Asociar categorías al gasto padre
+      if (expenseData.categoryIds && expenseData.categoryIds.length > 0) {
+        // Filter out any invalid category IDs (mock data with short IDs)
+        const validCategoryIds = expenseData.categoryIds.filter(catId => {
+          // UUID format check
+          return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(catId);
+        });
+
+        if (validCategoryIds.length === 0) {
+          console.warn('No valid category IDs found, skipping category association');
+        } else {
+          const junctionData = validCategoryIds.map((catId) => ({
+            expense_id: parentExpenseId,
+            category_id: catId,
+          }));
+
+          const { error: junctionError } = await supabase
+            .from('expense_categories')
+            .insert(junctionData);
+
+          if (junctionError) {
+            logError(junctionError, 'addExpenseWithInstallments-categories');
+          }
+        }
+      }
+
+      // 3. Incrementar usage_count de categorías
+      try {
+        // Filter valid category IDs
+        const validCategoryIds = expenseData.categoryIds.filter(catId =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(catId)
+        );
+
+        for (const catId of validCategoryIds) {
+          const { data: catData, error: catError } = await supabase
+            .from('categories')
+            .select('usage_count')
+            .eq('id', catId)
+            .single();
+
+          if (!catError && catData) {
+            await supabase
+              .from('categories')
+              .update({ usage_count: (catData.usage_count || 0) + 1 })
+              .eq('id', catId);
+          }
+        }
+      } catch (err) {
+        logError(err, 'addExpenseWithInstallments-usageCount');
+      }
+
+      // 4. Crear cuotas hijas
+      const baseDate = new Date(expenseData.date);
+      const installmentsData = [];
+
+      for (let i = 1; i <= installments; i++) {
+        const installmentDate = new Date(baseDate);
+        installmentDate.setMonth(baseDate.getMonth() + (i - 1));
+
+        installmentsData.push({
+          user_id: user.id,
+          amount: installmentAmount,
+          description: `${expenseData.description} - Cuota ${i}/${installments}`,
+          date: installmentDate.toISOString(),
+          financial_type: expenseData.financialType || 'unclassified',
+          payment_method: expenseData.paymentMethod || 'cash',
+          payment_status: installmentDate <= new Date() ? 'paid' : 'pending',
+          installments: installments,
+          installment_number: i,
+          parent_expense_id: parentExpenseId,
+          is_parent: false,
+          credit_card_id: expenseData.creditCardId,
+          service_id: expenseData.serviceId,
+        });
+      }
+
+      const { data: installmentsInserted, error: installmentsError } = await supabase
+        .from('expenses')
+        .insert(installmentsData)
+        .select();
+
+      if (installmentsError) {
+        logError(installmentsError, 'addExpenseWithInstallments-installments');
+        throw installmentsError;
+      }
+
+      // 5. Actualizar estado local
+      const parentExpense: Expense = {
+        id: parentData[0].id,
+        amount: 0,
+        categoryIds: expenseData.categoryIds,
+        description: parentData[0].description,
+        date: parentData[0].date,
+        createdAt: parentData[0].created_at,
+        financialType: parentData[0].financial_type,
+        paymentMethod: parentData[0].payment_method,
+        paymentStatus: parentData[0].payment_status,
+        installments: parentData[0].installments,
+        installmentNumber: parentData[0].installment_number,
+        totalAmount: Number(parentData[0].total_amount),
+        isParent: parentData[0].is_parent,
+        creditCardId: parentData[0].credit_card_id,
+        serviceId: parentData[0].service_id,
+      };
+
+      const childExpenses: Expense[] = installmentsInserted.map((item: any) => ({
+        id: item.id,
+        amount: Number(item.amount),
+        categoryIds: expenseData.categoryIds,
+        description: item.description,
+        date: item.date,
+        createdAt: item.created_at,
+        financialType: item.financial_type,
+        paymentMethod: item.payment_method,
+        paymentStatus: item.payment_status,
+        installments: item.installments,
+        installmentNumber: item.installment_number,
+        parentExpenseId: item.parent_expense_id,
+        isParent: item.is_parent,
+        creditCardId: item.credit_card_id,
+        serviceId: item.service_id,
+      }));
+
+      set((state) => {
+        const categories = (state as any).categories || [];
+        const updatedCategories = categories.map((c: any) =>
+          expenseData.categoryIds.includes(c.id)
+            ? { ...c, usageCount: (c.usageCount || 0) + 1 }
+            : c
+        );
+
+        return {
+          expenses: sortExpensesByDate([parentExpense, ...childExpenses, ...state.expenses]),
+          categories: updatedCategories,
+          isLoading: false,
+        } as any;
+      });
+    } catch (error) {
+      logError(error, 'addExpenseWithInstallments');
+      const errorMessage = getUserFriendlyMessage(error, 'expense');
+      set({ error: errorMessage, isLoading: false } as any);
+    }
+  },
+
+  getExpenseInstallments: (parentExpenseId: string) => {
+    const { expenses } = get();
+    return expenses
+      .filter((e) => e.parentExpenseId === parentExpenseId)
+      .sort((a, b) => (a.installmentNumber || 0) - (b.installmentNumber || 0));
+  },
+
+  getCreditCardMonthlyExpenses: (cardId: string, month: number, year: number) => {
+    const { expenses } = get();
+    return expenses.filter((e) => {
+      if (e.creditCardId !== cardId || e.paymentMethod !== 'credit_card') {
+        return false;
+      }
+
+      // Solo mostrar cuotas hijas, no el gasto padre
+      if (e.isParent) {
+        return false;
+      }
+
+      const expenseDate = new Date(e.date);
+      return (
+        expenseDate.getMonth() === month && expenseDate.getFullYear() === year
+      );
+    });
+  },
+
+  payCreditCardStatement: async (cardId: string, month: number, year: number, paymentAmount?: number) => {
+    set({ isLoading: true, error: null } as any);
+    try {
+      const { supabase } = await import('../../services/supabase');
+      const user = (get() as any).user;
+
+      if (!user || !user.id) {
+        const errorMsg = getUserFriendlyMessage(new Error('No user authenticated'), 'expense');
+        logError(new Error('No user authenticated'), 'payCreditCardStatement');
+        set({ error: errorMsg, isLoading: false } as any);
+        throw new Error(errorMsg);
+      }
+
+      // 1. Obtener todas las cuotas del mes
+      const monthlyExpenses = get().getCreditCardMonthlyExpenses(cardId, month, year);
+
+      if (monthlyExpenses.length === 0) {
+        set({ isLoading: false } as any);
+        return;
+      }
+
+      // 2. Calcular el total a pagar
+      const totalAmount = paymentAmount || monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+      // 3. Actualizar todas las cuotas a 'paid'
+      const expenseIds = monthlyExpenses.map((e) => e.id);
+
+      const { error: updateError } = await supabase
+        .from('expenses')
+        .update({ payment_status: 'paid' })
+        .in('id', expenseIds);
+
+      if (updateError) {
+        logError(updateError, 'payCreditCardStatement-update');
+        throw updateError;
+      }
+
+      // 4. Crear el gasto del pago del resumen
+      const creditCard = (get() as any).creditCards?.find((c: any) => c.id === cardId);
+      const cardName = creditCard?.name || 'Tarjeta';
+
+      const paymentExpenseData = {
+        amount: totalAmount,
+        description: `Pago Resumen ${cardName} ${month + 1}/${year}`,
+        date: new Date().toISOString(),
+        financial_type: 'needs',
+        user_id: user.id,
+        payment_method: 'cash', // El pago del resumen se hace en efectivo/débito
+        payment_status: 'paid',
+        is_credit_card_payment: true,
+        credit_card_id: cardId,
+      };
+
+      const { data: paymentData, error: paymentError } = await supabase
+        .from('expenses')
+        .insert([paymentExpenseData])
+        .select();
+
+      if (paymentError) {
+        logError(paymentError, 'payCreditCardStatement-payment');
+        throw paymentError;
+      }
+
+      // 5. Actualizar estado local
+      set((state) => {
+        const updatedExpenses = state.expenses.map((e) =>
+          expenseIds.includes(e.id)
+            ? { ...e, paymentStatus: 'paid' as const }
+            : e
+        );
+
+        const paymentExpense: Expense = {
+          id: paymentData[0].id,
+          amount: Number(paymentData[0].amount),
+          categoryIds: [],
+          description: paymentData[0].description,
+          date: paymentData[0].date,
+          createdAt: paymentData[0].created_at,
+          financialType: paymentData[0].financial_type,
+          paymentMethod: paymentData[0].payment_method,
+          paymentStatus: paymentData[0].payment_status,
+          isCreditCardPayment: paymentData[0].is_credit_card_payment,
+          creditCardId: paymentData[0].credit_card_id,
+        };
+
+        return {
+          expenses: sortExpensesByDate([paymentExpense, ...updatedExpenses]),
+          isLoading: false,
+        } as any;
+      });
+    } catch (error) {
+      logError(error, 'payCreditCardStatement');
+      const errorMessage = getUserFriendlyMessage(error, 'expense');
+      set({ error: errorMessage, isLoading: false } as any);
+    }
+  },
+
+  getCurrentExpenses: () => {
+    const { expenses } = get();
+    const now = new Date();
+
+    return expenses.filter((e) => {
+      // Excluir gastos padre (son metadata)
+      if (e.isParent) {
+        return false;
+      }
+
+      // Excluir gastos futuros pendientes
+      const expenseDate = new Date(e.date);
+      if (e.paymentStatus === 'pending' && expenseDate > now) {
+        return false;
+      }
+
+      return true;
+    });
+  },
+
+  getUpcomingExpenses: () => {
+    const { expenses } = get();
+    const now = new Date();
+
+    return expenses.filter((e) => {
+      // Excluir gastos padre
+      if (e.isParent) {
+        return false;
+      }
+
+      // Solo gastos futuros pendientes
+      const expenseDate = new Date(e.date);
+      return e.paymentStatus === 'pending' && expenseDate > now;
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   },
 
   getSummary: () => {
-    const { expenses } = get();
     const now = new Date();
-    const currentMonthStart = startOfMonth(now);
-    const previousMonthStart = startOfMonth(subMonths(now, 1));
-    
-    const currentMonthExpenses = expenses.filter(e => isSameMonth(new Date(e.date), now));
-    const previousMonthExpenses = expenses.filter(e => isSameMonth(new Date(e.date), subMonths(now, 1)));
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const state = get() as any;
+
+    // Usar getCurrentExpenses para excluir gastos padre y futuros
+    const validExpenses = get().getCurrentExpenses();
+
+    const currentMonthExpenses = validExpenses.filter((e) =>
+      isSameMonth(new Date(e.date), now)
+    );
+    const previousMonthExpenses = validExpenses.filter((e) =>
+      isSameMonth(new Date(e.date), subMonths(now, 1))
+    );
 
     const totalBalance = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const previousMonthBalance = previousMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const previousMonthBalance = previousMonthExpenses.reduce(
+      (sum, e) => sum + e.amount,
+      0
+    );
 
     const daysPassed = getDate(now);
+    const daysInMonth = getDaysInMonth(now);
+    const daysRemaining = daysInMonth - daysPassed;
     const weeksPassed = Math.max(1, daysPassed / 7);
     const weeklyAverage = totalBalance / weeksPassed;
 
-    const daysInMonth = getDaysInMonth(now);
-    const projectedBalance = daysPassed > 0 ? (totalBalance / daysPassed) * daysInMonth : 0;
+    // Calcular servicios recurrentes pendientes
+    const recurringServices = state.recurringServices || [];
+    const servicePayments = state.servicePayments || [];
+
+    let pendingRecurring = 0;
+
+    recurringServices.forEach((service: any) => {
+      if (!service.is_active) return;
+
+      // Verificar si ya se pagó este mes
+      const payment = servicePayments.find(
+        (p: any) => p.service_id === service.id &&
+                    p.month === currentMonth + 1 &&
+                    p.year === currentYear &&
+                    p.status === 'paid'
+      );
+
+      if (!payment) {
+        // Servicio aún no pagado este mes
+        pendingRecurring += service.estimated_amount;
+      }
+    });
+
+    // Separar gastos en fijos (con serviceId) y variables
+    const fixedExpenses = currentMonthExpenses.filter((e) => e.serviceId);
+    const variableExpenses = currentMonthExpenses.filter((e) => !e.serviceId);
+
+    const totalFixed = fixedExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalVariable = variableExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+    // Proyección mejorada:
+    // Gastos fijos conocidos (ya pagados + pendientes) + proyección de variables
+    const dailyVariableAverage = daysPassed > 0 ? totalVariable / daysPassed : 0;
+    const projectedVariables = totalVariable + (dailyVariableAverage * daysRemaining);
+    const projectedFixed = totalFixed + pendingRecurring;
+    const projectedBalance = projectedFixed + projectedVariables;
+
+    // Comparación con mes anterior
+    const changeFromLastMonth = previousMonthBalance > 0
+      ? ((totalBalance - previousMonthBalance) / previousMonthBalance) * 100
+      : 0;
 
     return {
       totalBalance,
       previousMonthBalance,
       weeklyAverage,
       projectedBalance,
+      // Nuevos campos
+      totalFixed,
+      totalVariable,
+      pendingRecurring,
+      projectedFixed,
+      projectedVariables,
+      changeFromLastMonth,
+      daysPassed,
+      daysRemaining,
     };
   },
 });

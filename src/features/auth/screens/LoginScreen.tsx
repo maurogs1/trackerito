@@ -11,6 +11,17 @@ import { getUserFriendlyMessage, logError } from '../../../shared/utils/errorHan
 
 WebBrowser.maybeCompleteAuthSession();
 
+// Load essential data after successful login
+const loadEssentialData = async () => {
+  console.log('Loading essential data after login...');
+  const state = useStore.getState();
+  await Promise.all([
+    state.loadExpenses(),
+    state.loadCategories(),
+  ]);
+  console.log('Essential data loaded');
+};
+
 export default function LoginScreen() {
   const { isLoading, preferences, error } = useStore();
   const isDark = preferences.theme === 'dark';
@@ -58,6 +69,9 @@ export default function LoginScreen() {
               user: sessionData.user,
               error: null
             });
+
+            // Load essential data
+            await loadEssentialData();
           } catch (e: unknown) {
             logError(e, 'OAuth-session-set');
             const errorMessage = getUserFriendlyMessage(e, 'auth');
@@ -131,11 +145,14 @@ export default function LoginScreen() {
             }
             
             // Manually update the store state
-            useStore.setState({ 
-              isAuthenticated: true, 
+            useStore.setState({
+              isAuthenticated: true,
               user: sessionData.user,
               error: null
             });
+
+            // Load essential data
+            await loadEssentialData();
           } else {
             throw new Error('Faltan tokens de autenticación');
           }

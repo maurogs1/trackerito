@@ -39,37 +39,27 @@ export const createBanksSlice: StateCreator<BanksSlice> = (set, get) => ({
   addBank: async (name) => {
     set({ error: null });
     try {
-      const isDemoMode = (get() as any).isDemoMode;
-      if (isDemoMode) {
-        const newBank: Bank = {
-          id: Math.random().toString(36).substr(2, 9),
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user logged in');
+
+      const { data, error } = await supabase
+        .from('banks')
+        .insert({
+          user_id: user.id,
           name
-        };
-        set(state => ({ banks: [...state.banks, newBank], error: null }));
-        return newBank;
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('No user logged in');
+        })
+        .select()
+        .single();
 
-        const { data, error } = await supabase
-          .from('banks')
-          .insert({
-            user_id: user.id,
-            name
-          })
-          .select()
-          .single();
+      if (error) throw error;
 
-        if (error) throw error;
+      const newBank: Bank = {
+        id: data.id,
+        name: data.name
+      };
 
-        const newBank: Bank = {
-          id: data.id,
-          name: data.name
-        };
-
-        set(state => ({ banks: [...state.banks, newBank], error: null }));
-        return newBank;
-      }
+      set(state => ({ banks: [...state.banks, newBank], error: null }));
+      return newBank;
     } catch (error) {
       logError(error, 'addBank');
       const errorMessage = getUserFriendlyMessage(error, 'bank');
@@ -81,25 +71,17 @@ export const createBanksSlice: StateCreator<BanksSlice> = (set, get) => ({
   deleteBank: async (id) => {
     set({ error: null });
     try {
-      const isDemoMode = (get() as any).isDemoMode;
-      if (isDemoMode) {
-        set(state => ({
-          banks: state.banks.filter(b => b.id !== id),
-          error: null
-        }));
-      } else {
-        const { error } = await supabase
-          .from('banks')
-          .delete()
-          .eq('id', id);
+      const { error } = await supabase
+        .from('banks')
+        .delete()
+        .eq('id', id);
 
-        if (error) throw error;
+      if (error) throw error;
 
-        set(state => ({
-          banks: state.banks.filter(b => b.id !== id),
-          error: null
-        }));
-      }
+      set(state => ({
+        banks: state.banks.filter(b => b.id !== id),
+        error: null
+      }));
     } catch (error) {
       logError(error, 'deleteBank');
       const errorMessage = getUserFriendlyMessage(error, 'delete');

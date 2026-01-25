@@ -21,6 +21,7 @@ import AddCreditCardScreen from '../features/creditCards/screens/AddCreditCardSc
 import AddCreditCardPurchaseScreen from '../features/creditCards/screens/AddCreditCardPurchaseScreen';
 import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
 import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
+import IncomeScreen from '../features/income/screens/IncomeScreen';
 import { StatusBar } from 'expo-status-bar';
 import Toast from '../shared/components/Toast';
 import { useToast } from '../shared/hooks/useToast';
@@ -44,6 +45,7 @@ export type RootStackParamList = {
   AddCreditCardPurchase: { cardId: string };
   MonthlyPayments: undefined;
   RecurringServices: undefined;
+  Income: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -188,7 +190,8 @@ export default function AppNavigator() {
             <Stack.Screen name="AddCreditCard" component={AddCreditCardScreen} options={{ title: 'Nueva Tarjeta' }} />
             <Stack.Screen name="AddCreditCardPurchase" component={AddCreditCardPurchaseScreen} options={{ title: 'Nuevo Consumo' }} />
             <Stack.Screen name="MonthlyPayments" component={MonthlyPaymentsScreen} options={{ title: 'Pagos del Mes' }} />
-            <Stack.Screen name="RecurringServices" component={RecurringServicesScreen} options={{ title: 'Servicios Recurrentes' }} />
+            <Stack.Screen name="RecurringServices" component={RecurringServicesScreen} options={{ title: 'Gastos Fijos' }} />
+            <Stack.Screen name="Income" component={IncomeScreen} options={{ title: 'Mis Ingresos' }} />
           </>
         )}
         </Stack.Navigator>

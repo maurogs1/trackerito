@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
@@ -8,7 +8,12 @@ import { Investment, InvestmentType } from '../types';
 import { useToast } from '../../../shared/hooks/useToast';
 
 export default function InvestmentsScreen() {
-  const { investments, addInvestment, removeInvestment, preferences } = useStore();
+  const { investments, addInvestment, removeInvestment, loadInvestments, preferences } = useStore();
+
+  // Load investments when screen mounts
+  useEffect(() => {
+    loadInvestments();
+  }, []);
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const { showSuccess } = useToast();

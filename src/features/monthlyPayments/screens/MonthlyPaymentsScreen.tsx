@@ -10,25 +10,22 @@ import { formatCurrencyDisplay, formatCurrencyInput, parseCurrencyInput } from '
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { FinancialType } from '../../expenses/types';
+import { FinancialType, Debt } from '../../expenses/types';
 import { RecurringService } from '../types';
 import { useToast } from '../../../shared/hooks/useToast';
 
 type MonthlyPaymentsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'MonthlyPayments'>;
 
-// Prefijo especial para identificar gastos creados desde la sección "Otros"
-const OTHER_PAYMENT_PREFIX = '__OTHER_PAYMENT__';
-
 export default function MonthlyPaymentsScreen() {
   const navigation = useNavigation<MonthlyPaymentsScreenNavigationProp>();
-  const { 
-    preferences, 
-    creditCards, 
+  const {
+    preferences,
+    creditCards,
     getMonthlyConsumption,
     getCreditCardPaymentStatus,
     expenses,
     loadExpenses,
-    debts, 
+    debts,
     banks,
     recurringServices,
     getServicePaymentStatus,
@@ -39,7 +36,9 @@ export default function MonthlyPaymentsScreen() {
     addExpense,
     categories,
     getMostUsedCategories,
-    addCategory
+    addCategory,
+    payDebtInstallment,
+    loadDebts
   } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
@@ -68,21 +67,18 @@ export default function MonthlyPaymentsScreen() {
   const [cardPaymentDate, setCardPaymentDate] = useState(new Date());
   const [showCardDatePicker, setShowCardDatePicker] = useState(false);
 
+  // Modal para pagar deuda
+  const [showDebtPaymentModal, setShowDebtPaymentModal] = useState(false);
+  const [selectedDebtId, setSelectedDebtId] = useState<string | null>(null);
+  const [debtPaymentDate, setDebtPaymentDate] = useState(new Date());
+  const [showDebtDatePicker, setShowDebtDatePicker] = useState(false);
+
   // Estados para acordeones (todos cerrados por defecto)
   const [expandedAccordions, setExpandedAccordions] = useState({
     creditCards: false,
     services: false,
     debts: false,
-    others: false,
   });
-
-  // Modal para agregar pago "Otros"
-  const [showOtherPaymentModal, setShowOtherPaymentModal] = useState(false);
-  const [otherPaymentAmount, setOtherPaymentAmount] = useState('');
-  const [otherPaymentDescription, setOtherPaymentDescription] = useState('');
-  const [otherPaymentDayOfMonth, setOtherPaymentDayOfMonth] = useState<string>('');
-  const [otherSelectedCategoryIds, setOtherSelectedCategoryIds] = useState<string[]>([]);
-  const [otherCategorySearchQuery, setOtherCategorySearchQuery] = useState('');
 
   const ICONS = [
     'cart', 'game-controller', 'car', 'medical', 'pricetag', 'restaurant', 'cafe', 'fitness',
@@ -103,9 +99,14 @@ export default function MonthlyPaymentsScreen() {
   });
 
   useEffect(() => {
+    // Load all data needed for this screen
+    const { loadCreditCards, loadCreditCardPurchases, loadDebts } = useStore.getState();
     loadRecurringServices();
     loadServicePayments();
     loadExpenses();
+    loadCreditCards();
+    loadCreditCardPurchases();
+    loadDebts();
   }, []);
 
   const changeMonth = (increment: number) => {
@@ -238,104 +239,26 @@ export default function MonthlyPaymentsScreen() {
 
   const servicesTotal = getMonthlyServicesTotal(currentMonth, currentYear);
 
-  // Obtener gastos "Otros" del mes (solo los que fueron creados desde esta pantalla)
-  // Identificamos los gastos "Otros" por un prefijo especial en la descripción
-  const otherPayments = useMemo(() => {
-    return expenses.filter(expense => {
-      const expenseDate = new Date(expense.date);
-      const isCurrentMonth = expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
-      // Solo incluir gastos que fueron creados desde "Otros" (tienen el prefijo especial)
-      const isOtherPayment = expense.description.startsWith(OTHER_PAYMENT_PREFIX);
-      return isCurrentMonth && isOtherPayment;
-    }).map(expense => ({
-      ...expense,
-      // Remover el prefijo al mostrar
-      description: expense.description.replace(OTHER_PAYMENT_PREFIX, ''),
-      dayOfMonth: new Date(expense.date).getDate()
-    }));
+  // Check which debts have been paid this month by looking at expenses with debtId
+  const debtsPaidThisMonth = useMemo(() => {
+    const paidDebtIds = new Set<string>();
+    expenses.forEach(expense => {
+      if (expense.debtId) {
+        const expenseDate = new Date(expense.date);
+        if (expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear) {
+          paidDebtIds.add(expense.debtId);
+        }
+      }
+    });
+    return paidDebtIds;
   }, [expenses, currentMonth, currentYear]);
 
-  const othersTotal = otherPayments.reduce((sum, expense) => sum + expense.amount, 0);
-
-  const totalMonthly = creditCardsTotal + debtsTotal + servicesTotal + othersTotal;
+  const totalMonthly = creditCardsTotal + debtsTotal + servicesTotal;
 
   // Función para toggle de acordeón
   const toggleAccordion = (key: keyof typeof expandedAccordions) => {
     setExpandedAccordions(prev => ({ ...prev, [key]: !prev[key] }));
   };
-
-  // Función para manejar guardar pago "Otros"
-  const handleSaveOtherPayment = async () => {
-    if (!otherPaymentAmount || !otherPaymentDescription.trim() || !otherPaymentDayOfMonth) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
-      return;
-    }
-
-    const day = parseInt(otherPaymentDayOfMonth);
-    if (isNaN(day) || day < 1 || day > 31) {
-      Alert.alert('Error', 'Por favor ingresa un día válido (1-31)');
-      return;
-    }
-
-    if (otherSelectedCategoryIds.length === 0) {
-      Alert.alert('Error', 'Por favor selecciona al menos una categoría');
-      return;
-    }
-
-    // Validar que todos los IDs de categorías sean UUIDs válidos (longitud > 10)
-    const validCategoryIds = otherSelectedCategoryIds.filter(id => id && id.length > 10);
-    if (validCategoryIds.length === 0) {
-      Alert.alert('Error', 'Por favor selecciona categorías válidas');
-      return;
-    }
-
-    try {
-      const amount = parseCurrencyInput(otherPaymentAmount);
-      if (isNaN(amount) || amount <= 0) {
-        Alert.alert('Error', 'Por favor ingresa un monto válido');
-        return;
-      }
-
-      // Crear fecha con el día del mes del mes actual
-      const paymentDate = new Date(currentYear, currentMonth, Math.min(day, new Date(currentYear, currentMonth + 1, 0).getDate()));
-
-      // Agregar prefijo especial para identificar que este gasto es de "Otros"
-      await addExpense({
-        amount,
-        description: OTHER_PAYMENT_PREFIX + otherPaymentDescription,
-        date: paymentDate.toISOString(),
-        financialType: 'needs' as FinancialType,
-        categoryIds: validCategoryIds, // Usar solo IDs válidos
-      });
-
-      await loadExpenses();
-
-      showSuccess('Pago agregado correctamente');
-      setShowOtherPaymentModal(false);
-      setOtherPaymentAmount('');
-      setOtherPaymentDescription('');
-      setOtherPaymentDayOfMonth('');
-      setOtherSelectedCategoryIds([]);
-    } catch (error) {
-      showError('No se pudo agregar el pago');
-    }
-  };
-
-  const handleOtherCategorySelect = (categoryId: string) => {
-    if (otherSelectedCategoryIds.includes(categoryId)) {
-      setOtherSelectedCategoryIds(otherSelectedCategoryIds.filter(id => id !== categoryId));
-    } else {
-      setOtherSelectedCategoryIds([...otherSelectedCategoryIds, categoryId]);
-    }
-  };
-
-  // Filtrar categorías: solo UUIDs válidos (longitud > 10) y que coincidan con la búsqueda
-  const filteredOtherCategories = sortedCategories.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(otherCategorySearchQuery.toLowerCase());
-    // Solo incluir categorías con UUIDs válidos (longitud > 10 caracteres, no IDs numéricos)
-    const isValidUUID = c.id && c.id.length > 10;
-    return matchesSearch && isValidUUID;
-  });
 
   const styles = StyleSheet.create({
     container: {
@@ -788,9 +711,9 @@ export default function MonthlyPaymentsScreen() {
         )}
       </Accordion>
 
-      {/* Acordeón: Servicios Recurrentes */}
+      {/* Acordeón: Gastos Fijos (servicios, alquiler, etc.) */}
       <Accordion
-        title="Servicios Recurrentes"
+        title="Gastos Fijos"
         total={servicesTotal}
         isExpanded={expandedAccordions.services}
         onToggle={() => toggleAccordion('services')}
@@ -800,14 +723,14 @@ export default function MonthlyPaymentsScreen() {
         {recurringServices.length === 0 ? (
           <View style={[styles.card, { borderLeftColor: '#F44336' }]}>
             <Text style={styles.emptyText}>
-              No hay servicios configurados aún
+              No tienes gastos fijos configurados (alquiler, servicios, suscripciones, etc.)
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionButton}
               onPress={() => navigation.navigate('RecurringServices')}
             >
               <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Configurar Servicios</Text>
+              <Text style={styles.actionButtonText}>Agregar Gasto Fijo</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -873,12 +796,12 @@ export default function MonthlyPaymentsScreen() {
                 </View>
               );
             })}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionButton}
               onPress={() => navigation.navigate('RecurringServices')}
             >
               <Ionicons name="settings-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Gestionar Servicios</Text>
+              <Text style={styles.actionButtonText}>Gestionar Gastos Fijos</Text>
             </TouchableOpacity>
           </>
         )}
@@ -902,14 +825,16 @@ export default function MonthlyPaymentsScreen() {
         ) : (
           debts
             .filter(debt => debt.status === 'active')
-            .map(debt => (
-              <View key={debt.id} style={styles.card}>
-                <View style={styles.cardRow}>
+            .map(debt => {
+              const isPaidThisMonth = debtsPaidThisMonth.has(debt.id);
+
+              return (
+                <View key={debt.id} style={styles.card}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <View style={{ 
-                      width: 40, 
-                      height: 40, 
-                      borderRadius: 20, 
+                    <View style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
                       backgroundColor: '#FF9800',
                       justifyContent: 'center',
                       alignItems: 'center',
@@ -919,71 +844,50 @@ export default function MonthlyPaymentsScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardName}>{debt.name}</Text>
-                      <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 4 }}>
-                        Cuota {debt.currentInstallment}/{debt.totalInstallments}
+                      <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 2 }}>
+                        {formatCurrencyDisplay(debt.installmentAmount)} - Cuota {debt.currentInstallment + 1}/{debt.totalInstallments}
                       </Text>
                     </View>
-                  </View>
-                  <Text style={styles.cardAmount}>
-                    {formatCurrencyDisplay(debt.installmentAmount)}
-                  </Text>
-                </View>
-              </View>
-            ))
-        )}
-      </Accordion>
-
-      {/* Acordeón: Otros */}
-      <Accordion
-        title="Otros"
-        total={othersTotal}
-        isExpanded={expandedAccordions.others}
-        onToggle={() => toggleAccordion('others')}
-        icon="list"
-        color="#9C27B0"
-      >
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => setShowOtherPaymentModal(true)}
-        >
-          <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>Agregar Pago (Alquiler, etc.)</Text>
-        </TouchableOpacity>
-        {otherPayments.length === 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.emptyText}>
-              No hay pagos registrados en esta categoría
-            </Text>
-          </View>
-        ) : (
-          otherPayments.map(expense => (
-            <View key={expense.id} style={styles.card}>
-              <View style={styles.cardRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                  <View style={{ 
-                    width: 40, 
-                    height: 40, 
-                    borderRadius: 20, 
-                    backgroundColor: '#9C27B0',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    marginRight: 12
-                  }}>
-                    <Ionicons name="list" size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardName}>{expense.description}</Text>
-                    <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 4 }}>
-                      Día {(expense as any).dayOfMonth || new Date(expense.date).getDate()} de cada mes
-                    </Text>
+                    {isPaidThisMonth ? (
+                      <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#4CAF50' + '20',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 8
+                      }}>
+                        <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                        <Text style={{ fontSize: 12, color: '#4CAF50', marginLeft: 4, fontWeight: '600' }}>
+                          Pagado
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={{
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          backgroundColor: currentTheme.primary,
+                          borderRadius: 8,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        onPress={() => {
+                          setSelectedDebtId(debt.id);
+                          setShowDebtPaymentModal(true);
+                        }}
+                      >
+                        <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                        <Text style={{ fontSize: 12, color: '#FFFFFF', fontWeight: '600' }}>
+                          Pagar
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
-                <Text style={styles.cardAmount}>
-                  {formatCurrencyDisplay(expense.amount)}
-                </Text>
-              </View>
-            </View>
-          ))
+              );
+            })
         )}
       </Accordion>
 
@@ -1328,128 +1232,120 @@ export default function MonthlyPaymentsScreen() {
       </TouchableWithoutFeedback>
     </Modal>
 
-    {/* Modal para agregar pago "Otros" */}
-    <Modal visible={showOtherPaymentModal} transparent animationType="fade">
-      <TouchableWithoutFeedback onPress={() => setShowOtherPaymentModal(false)}>
+    {/* Modal para pagar deuda */}
+    <Modal visible={showDebtPaymentModal} transparent animationType="fade">
+      <TouchableWithoutFeedback onPress={() => setShowDebtPaymentModal(false)}>
         <View style={styles.modalOverlay}>
           <TouchableWithoutFeedback onPress={() => {}}>
             <ScrollView style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Agregar Pago</Text>
+              {selectedDebtId && (() => {
+                const debt = debts.find(d => d.id === selectedDebtId);
+                if (!debt) return null;
 
-              <Text style={styles.modalLabel}>Descripción *</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Ej: Alquiler, Seguro, etc."
-                placeholderTextColor={currentTheme.textSecondary}
-                value={otherPaymentDescription}
-                onChangeText={setOtherPaymentDescription}
-              />
+                return (
+                  <>
+                    <Text style={styles.modalTitle}>Pagar Cuota - {debt.name}</Text>
 
-              <Text style={styles.modalLabel}>Monto *</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="0,00"
-                placeholderTextColor={currentTheme.textSecondary}
-                keyboardType="numeric"
-                value={otherPaymentAmount}
-                onChangeText={(text) => setOtherPaymentAmount(formatCurrencyInput(text))}
-              />
+                    <View style={{
+                      backgroundColor: '#FF9800' + '15',
+                      padding: 16,
+                      borderRadius: 12,
+                      marginBottom: 20,
+                      alignItems: 'center'
+                    }}>
+                      <Text style={{ fontSize: 14, color: currentTheme.textSecondary, marginBottom: 4 }}>
+                        Cuota {debt.currentInstallment + 1} de {debt.totalInstallments}
+                      </Text>
+                      <Text style={{ fontSize: 28, fontWeight: 'bold', color: currentTheme.text }}>
+                        {formatCurrencyDisplay(debt.installmentAmount)}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 8 }}>
+                        Restante: {formatCurrencyDisplay(debt.totalAmount - (debt.currentInstallment * debt.installmentAmount))}
+                      </Text>
+                    </View>
 
-              <Text style={styles.modalLabel}>Día del Mes *</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Ej: 5 (para el día 5 de cada mes)"
-                placeholderTextColor={currentTheme.textSecondary}
-                keyboardType="numeric"
-                value={otherPaymentDayOfMonth}
-                onChangeText={(text) => {
-                  // Solo permitir números del 1 al 31
-                  const num = parseInt(text);
-                  if (text === '' || (!isNaN(num) && num >= 1 && num <= 31)) {
-                    setOtherPaymentDayOfMonth(text);
-                  }
-                }}
-                maxLength={2}
-              />
-              <Text style={{ fontSize: 12, color: currentTheme.textSecondary, marginTop: 4, marginBottom: 8 }}>
-                Día del mes en que vence este pago (1-31)
-              </Text>
-
-              <Text style={styles.modalLabel}>Categoría *</Text>
-              <View style={styles.categorySearchContainer}>
-                <Ionicons name="search" size={16} color={currentTheme.textSecondary} />
-                <TextInput
-                  style={styles.categorySearchInput}
-                  placeholder="Buscar categoría..."
-                  placeholderTextColor={currentTheme.textSecondary}
-                  value={otherCategorySearchQuery}
-                  onChangeText={setOtherCategorySearchQuery}
-                />
-              </View>
-
-              <View style={styles.modalCategoryContainer}>
-                {filteredOtherCategories.map((cat: any) => (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[
-                      styles.modalCategoryChip,
-                      otherSelectedCategoryIds.includes(cat.id) && styles.modalCategoryChipSelected
-                    ]}
-                    onPress={() => handleOtherCategorySelect(cat.id)}
-                  >
-                    <Ionicons
-                      name={cat.icon as any}
-                      size={16}
-                      color={otherSelectedCategoryIds.includes(cat.id) ? '#FFFFFF' : cat.color}
-                    />
-                    <Text
-                      style={[
-                        styles.modalCategoryText,
-                        otherSelectedCategoryIds.includes(cat.id) && styles.modalCategoryTextSelected
-                      ]}
+                    <Text style={styles.modalLabel}>Fecha de Pago</Text>
+                    <TouchableOpacity
+                      style={styles.modalInput}
+                      onPress={() => setShowDebtDatePicker(true)}
                     >
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                  style={[styles.modalCategoryChip, { borderStyle: 'dashed', borderColor: currentTheme.primary }]}
-                  onPress={() => setShowCategoryModal(true)}
-                >
-                  <Ionicons name="add" size={16} color={currentTheme.primary} />
-                  <Text style={[styles.modalCategoryText, { color: currentTheme.primary }]}>
-                    Nueva
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="calendar-outline" size={20} color={currentTheme.textSecondary} style={{ marginRight: 10 }} />
+                        <Text style={{ color: currentTheme.text, fontSize: 16 }}>
+                          {format(debtPaymentDate, 'dd/MM/yyyy', { locale: es })}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
 
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonCancel]}
-                  onPress={() => {
-                    setShowOtherPaymentModal(false);
-                    setOtherPaymentAmount('');
-                    setOtherPaymentDescription('');
-                    setOtherPaymentDayOfMonth('');
-                    setOtherSelectedCategoryIds([]);
-                  }}
-                >
-                  <Text style={styles.modalButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonSave]}
-                  onPress={handleSaveOtherPayment}
-                >
-                  <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>
-                    Guardar
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                    {Platform.OS !== 'web' && showDebtDatePicker && (
+                      <DateTimePicker
+                        value={debtPaymentDate}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(event, selectedDate) => {
+                          if (Platform.OS !== 'web') {
+                            setShowDebtDatePicker(false);
+                          }
+                          if (selectedDate) {
+                            setDebtPaymentDate(selectedDate);
+                          }
+                        }}
+                      />
+                    )}
+
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.modalButtonSave, { marginTop: 20, width: '100%' }]}
+                      onPress={async () => {
+                        try {
+                          // Create expense for the debt payment
+                          const expense = await addExpense({
+                            amount: debt.installmentAmount,
+                            description: `Cuota ${debt.currentInstallment + 1}/${debt.totalInstallments} - ${debt.name}`,
+                            categoryIds: [],
+                            date: debtPaymentDate.toISOString(),
+                            financialType: 'needs' as FinancialType,
+                            debtId: debt.id,
+                          });
+
+                          if (expense) {
+                            // Update debt installment
+                            await payDebtInstallment(debt.id, expense.id);
+                            await loadExpenses();
+                            await loadDebts();
+
+                            showSuccess(`Cuota de "${debt.name}" registrada correctamente`);
+                          }
+
+                          setShowDebtPaymentModal(false);
+                          setSelectedDebtId(null);
+                          setDebtPaymentDate(new Date());
+                        } catch (error) {
+                          showError('No se pudo registrar el pago');
+                        }
+                      }}
+                    >
+                      <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>
+                        Marcar como Pagado
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.modalButtons}>
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.modalButtonCancel]}
+                        onPress={() => setShowDebtPaymentModal(false)}
+                      >
+                        <Text style={styles.modalButtonText}>Cancelar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                );
+              })()}
             </ScrollView>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
     </Modal>
+
   </View>
   );
 }

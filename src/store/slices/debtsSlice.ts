@@ -11,6 +11,7 @@ export interface DebtsSlice {
     deleteDebt: (id: string) => Promise<void>;
     addDebtItem: (item: Omit<DebtItem, 'id'>) => Promise<DebtItem | null>;
     linkExpenseToDebt: (link: Omit<ExpenseDebt, 'id'>) => Promise<ExpenseDebt | null>;
+    payDebtInstallment: (debtId: string, expenseId: string) => Promise<boolean>;
 }
 
 export const createDebtsSlice: StateCreator<DebtsSlice> = (set, get) => ({
@@ -209,6 +210,58 @@ export const createDebtsSlice: StateCreator<DebtsSlice> = (set, get) => ({
         } catch (error) {
             console.error('Error linking expense to debt:', error);
             return null;
+        }
+    },
+
+    payDebtInstallment: async (debtId, expenseId) => {
+        try {
+            const { debts } = get();
+            const debt = debts.find(d => d.id === debtId);
+            if (!debt) throw new Error('Debt not found');
+
+            // Link expense to debt
+            const { error: linkError } = await supabase
+                .from('expense_debts')
+                .insert({
+                    expense_id: expenseId,
+                    debt_id: debtId,
+                    amount: debt.installmentAmount
+                });
+
+            if (linkError) throw linkError;
+
+            // Calculate new installment number and check if debt is completed
+            const newInstallment = debt.currentInstallment + 1;
+            const isCompleted = newInstallment >= debt.totalInstallments;
+
+            // Update debt
+            const { error: updateError } = await supabase
+                .from('debts')
+                .update({
+                    current_installment: newInstallment,
+                    status: isCompleted ? 'paid' : 'active'
+                })
+                .eq('id', debtId);
+
+            if (updateError) throw updateError;
+
+            // Update local state
+            set(state => ({
+                debts: state.debts.map(d =>
+                    d.id === debtId
+                        ? {
+                            ...d,
+                            currentInstallment: newInstallment,
+                            status: isCompleted ? 'paid' : 'active'
+                        }
+                        : d
+                )
+            }));
+
+            return true;
+        } catch (error) {
+            console.error('Error paying debt installment:', error);
+            return false;
         }
     }
 });

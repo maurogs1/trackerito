@@ -19,20 +19,34 @@ const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1; // Subtract 1px to avoi
 
 export default function DashboardScreen() {
   const navigation = useNavigation<DashboardScreenNavigationProp>();
-  const { expenses, loadExpenses, getSummary, preferences, user, goals, categories, getBudgetProgress, userBanks } = useStore();
+  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, goals, categories, getBudgetProgress, userBanks, getBalance, loadIncomes, incomes, getMonthlyIncome, loadRecurringServices, loadServicePayments, recurringServices, toggleHideFinancialData } = useStore();
   const summary = getSummary();
+  const balance = getBalance();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const hideData = preferences.hideFinancialData ?? false;
+
+  // Helper para mostrar montos o asteriscos
+  const displayAmount = (amount: number, prefix: string = '$') => {
+    if (hideData) return '••••••';
+    return `${prefix}${formatCurrencyDisplay(amount)}`;
+  };
+
+  // Usar getCurrentExpenses para excluir gastos padre y futuros pendientes
+  const currentExpenses = getCurrentExpenses();
 
   useEffect(() => {
     loadExpenses();
+    loadIncomes();
+    loadRecurringServices();
+    loadServicePayments();
   }, []);
 
   const topCategory = useMemo(() => {
     const categoryTotals: Record<string, number> = {};
     const currentMonth = new Date().getMonth();
-    
-    expenses.forEach(e => {
+
+    currentExpenses.forEach(e => {
       if (new Date(e.date).getMonth() === currentMonth) {
          // Add amount to ALL categories of this expense
          if (e.categoryIds && e.categoryIds.length > 0) {
@@ -55,7 +69,7 @@ export default function DashboardScreen() {
       icon: category?.icon || 'pricetag',
       color: category?.color || currentTheme.text
     };
-  }, [expenses, categories]);
+  }, [currentExpenses, categories]);
 
   const styles = StyleSheet.create({
     container: {
@@ -362,35 +376,176 @@ export default function DashboardScreen() {
         </View>
 
         {/* Main Balance Card */}
-        <View style={styles.mainCard}>
-          <Text style={styles.balanceLabel}>Gastado este Mes</Text>
-          <Text style={styles.balanceAmount}>${formatCurrencyDisplay(summary.totalBalance)}</Text>
-        </View>
+        <TouchableOpacity
+          style={[styles.mainCard, { backgroundColor: balance.balance >= 0 ? currentTheme.primary : currentTheme.error }]}
+          onPress={() => navigation.navigate('Income')}
+          activeOpacity={0.9}
+        >
+          {/* Botón para ocultar/mostrar datos */}
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 16, right: 16, padding: 8 }}
+            onPress={(e) => {
+              e.stopPropagation();
+              toggleHideFinancialData();
+            }}
+          >
+            <Ionicons
+              name={hideData ? 'eye-off-outline' : 'eye-outline'}
+              size={24}
+              color="rgba(255,255,255,0.8)"
+            />
+          </TouchableOpacity>
+
+          <Text style={styles.balanceLabel}>
+            {balance.totalIncome > 0 ? 'Disponible Real' : 'Gastado este Mes'}
+          </Text>
+          <Text style={styles.balanceAmount}>
+            {displayAmount(balance.totalIncome > 0 ? Math.abs(balance.balance) : summary.totalBalance)}
+          </Text>
+
+          {balance.totalIncome > 0 && (
+            <>
+              {/* Barra de progreso del gasto */}
+              <View style={{ width: '100%', marginTop: 16 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
+                    Gastado: {displayAmount(balance.totalExpenses)}
+                  </Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
+                    de {displayAmount(balance.totalIncome)}
+                  </Text>
+                </View>
+                <View style={{ height: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4, overflow: 'hidden' }}>
+                  <View
+                    style={{
+                      height: '100%',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: 4,
+                      width: hideData ? '50%' : `${Math.min((balance.totalExpenses / balance.totalIncome) * 100, 100)}%`
+                    }}
+                  />
+                </View>
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 4, textAlign: 'center' }}>
+                  {hideData ? '••%' : `${Math.round((balance.totalExpenses / balance.totalIncome) * 100)}%`} del ingreso usado
+                </Text>
+              </View>
+
+              {/* Desglose: Ingresos, Gastos, Por Pagar */}
+              <View style={{ flexDirection: 'row', marginTop: 16, gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <View style={{ alignItems: 'center', minWidth: 70 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Ingresos</Text>
+                  <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>
+                    {displayAmount(balance.totalIncome)}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'center', minWidth: 70 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Gastado</Text>
+                  <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>
+                    {displayAmount(balance.totalExpenses)}
+                  </Text>
+                </View>
+                {balance.pendingRecurring > 0 && (
+                  <View style={{ alignItems: 'center', minWidth: 70 }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Por Pagar</Text>
+                    <Text style={{ color: '#FFD54F', fontWeight: 'bold', fontSize: 14 }}>
+                      {displayAmount(balance.pendingRecurring)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+
+          {balance.totalIncome === 0 && (
+            <TouchableOpacity
+              style={{ marginTop: 12, paddingVertical: 8, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}
+              onPress={() => navigation.navigate('Income')}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>+ Agregar ingresos</Text>
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
 
         {/* Insights Grid */}
         <View style={styles.gridContainer}>
-          <View style={styles.gridItem}>
-            <Ionicons name="calendar-outline" size={24} color={currentTheme.primary} />
-            <Text style={styles.gridLabel}>Promedio Semanal</Text>
-            <Text style={styles.gridValue}>${formatCurrencyDisplay(summary.weeklyAverage)}</Text>
-          </View>
-          <View style={styles.gridItem}>
-            <Ionicons name="trending-up-outline" size={24} color={currentTheme.secondary} />
-            <Text style={styles.gridLabel}>Proyección Mes</Text>
-            <Text style={styles.gridValue}>${formatCurrencyDisplay(summary.projectedBalance)}</Text>
-          </View>
-          <View style={styles.gridItem}>
-            <Ionicons name="time-outline" size={24} color={currentTheme.error} />
-            <Text style={styles.gridLabel}>Mes Anterior</Text>
-            <Text style={styles.gridValue}>${formatCurrencyDisplay(summary.previousMonthBalance)}</Text>
-          </View>
-          <View style={styles.gridItem}>
-            <Ionicons name={topCategory?.icon as any || "pricetag-outline"} size={24} color={topCategory?.color || currentTheme.text} />
-            <Text style={styles.gridLabel}>Top Categoría</Text>
-            <Text style={styles.gridValue} numberOfLines={1} adjustsFontSizeToFit>
-              {topCategory ? topCategory.name : '-'}
-            </Text>
-          </View>
+          {balance.totalIncome > 0 ? (
+            <>
+              {/* Disponible por día */}
+              <View style={styles.gridItem}>
+                <Ionicons name="today-outline" size={24} color={hideData ? currentTheme.textSecondary : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error)} />
+                <Text style={styles.gridLabel}>Disponible/día</Text>
+                <Text style={[styles.gridValue, { color: hideData ? currentTheme.text : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error) }]}>
+                  {displayAmount(balance.availableDaily)}
+                </Text>
+                <Text style={{ fontSize: 10, color: currentTheme.textSecondary, marginTop: 2 }}>
+                  {balance.daysRemaining} días restantes
+                </Text>
+              </View>
+
+              {/* Proyección del mes */}
+              <View style={styles.gridItem}>
+                <Ionicons
+                  name={hideData ? "analytics-outline" : (summary.projectedBalance <= balance.totalIncome ? "checkmark-circle-outline" : "warning-outline")}
+                  size={24}
+                  color={hideData ? currentTheme.textSecondary : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.warning || '#FF9800')}
+                />
+                <Text style={styles.gridLabel}>Proyección Mes</Text>
+                <Text style={[styles.gridValue, { color: hideData ? currentTheme.text : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.warning || '#FF9800') }]}>
+                  {displayAmount(summary.projectedBalance)}
+                </Text>
+                <Text style={{ fontSize: 10, color: currentTheme.textSecondary, marginTop: 2 }}>
+                  {hideData ? '••••' : (summary.projectedBalance <= balance.totalIncome ? 'Vas bien ✓' : 'Podrías excederte')}
+                </Text>
+              </View>
+
+              {/* Gastos Fijos (incluye pendientes) */}
+              <View style={styles.gridItem}>
+                <Ionicons name="lock-closed-outline" size={24} color={currentTheme.primary} />
+                <Text style={styles.gridLabel}>Gastos Fijos</Text>
+                <Text style={styles.gridValue}>{displayAmount(summary.totalFixed + summary.pendingRecurring)}</Text>
+                {summary.pendingRecurring > 0 && (
+                  <Text style={{ fontSize: 10, color: currentTheme.warning || '#FF9800', marginTop: 2 }}>
+                    {hideData ? '••••' : `$${formatCurrencyDisplay(summary.pendingRecurring)} pendiente`}
+                  </Text>
+                )}
+              </View>
+
+              {/* Gastos Variables */}
+              <View style={styles.gridItem}>
+                <Ionicons name="shuffle-outline" size={24} color={currentTheme.secondary} />
+                <Text style={styles.gridLabel}>Gastos Variables</Text>
+                <Text style={styles.gridValue}>{displayAmount(summary.totalVariable)}</Text>
+                <Text style={{ fontSize: 10, color: currentTheme.textSecondary, marginTop: 2 }}>
+                  {hideData ? '••••' : `$${formatCurrencyDisplay(summary.totalVariable / Math.max(1, summary.daysPassed))}/día prom.`}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.gridItem}>
+                <Ionicons name="calendar-outline" size={24} color={currentTheme.primary} />
+                <Text style={styles.gridLabel}>Promedio Semanal</Text>
+                <Text style={styles.gridValue}>{displayAmount(summary.weeklyAverage)}</Text>
+              </View>
+              <View style={styles.gridItem}>
+                <Ionicons name="trending-up-outline" size={24} color={currentTheme.secondary} />
+                <Text style={styles.gridLabel}>Proyección Mes</Text>
+                <Text style={styles.gridValue}>{displayAmount(summary.projectedBalance)}</Text>
+              </View>
+              <View style={styles.gridItem}>
+                <Ionicons name="time-outline" size={24} color={currentTheme.error} />
+                <Text style={styles.gridLabel}>Mes Anterior</Text>
+                <Text style={styles.gridValue}>{displayAmount(summary.previousMonthBalance)}</Text>
+              </View>
+              <View style={styles.gridItem}>
+                <Ionicons name={topCategory?.icon as any || "pricetag-outline"} size={24} color={topCategory?.color || currentTheme.text} />
+                <Text style={styles.gridLabel}>Top Categoría</Text>
+                <Text style={styles.gridValue} numberOfLines={1} adjustsFontSizeToFit>
+                  {topCategory ? topCategory.name : '-'}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Feature Carousel */}
@@ -557,7 +712,7 @@ export default function DashboardScreen() {
             <Text style={styles.seeAll}>Ver Todo</Text>
           </TouchableOpacity>
         </View>
-        {expenses.slice(0, 5).map((expense) => {
+        {currentExpenses.slice(0, 5).map((expense) => {
           const primaryCatId = expense.categoryIds?.[0];
           const category = categories.find(c => c.id === primaryCatId) || { name: 'Desconocido', icon: 'pricetag', color: currentTheme.textSecondary };
           

@@ -15,6 +15,7 @@ import { createDebtsSlice, DebtsSlice } from './slices/debtsSlice';
 import { createBanksSlice, BanksSlice } from './slices/banksSlice';
 import { createCreditCardsSlice, CreditCardsSlice } from './slices/creditCardsSlice';
 import { createRecurringServicesSlice, RecurringServicesSlice } from './slices/recurringServicesSlice';
+import { createIncomeSlice, IncomeSlice } from './slices/incomeSlice';
 
 // Combined store type
 export type StoreState = AuthSlice &
@@ -28,7 +29,8 @@ export type StoreState = AuthSlice &
   DebtsSlice &
   BanksSlice &
   CreditCardsSlice &
-  RecurringServicesSlice;
+  RecurringServicesSlice &
+  IncomeSlice;
 
 // Create the combined store
 export const useStore = create<StoreState>()(
@@ -46,6 +48,7 @@ export const useStore = create<StoreState>()(
       ...createBanksSlice(...a),
       ...createCreditCardsSlice(...a),
       ...createRecurringServicesSlice(...a),
+      ...createIncomeSlice(...a),
     }),
     {
       name: 'trackerito-storage',
@@ -65,36 +68,13 @@ export const useStore = create<StoreState>()(
         creditCardPurchases: state.creditCardPurchases,
         recurringServices: state.recurringServices,
         servicePayments: state.servicePayments,
+        incomes: state.incomes,
         preferences: state.preferences,
-        isDemoMode: state.isDemoMode
       }),
     }
   )
 );
 
-// Initialize data on store creation
-const initializeStore = async () => {
-  const state = useStore.getState();
-
-  console.log('Initializing store with demo mode:', state.isDemoMode);
-
-  // Load data based on current mode
-  await Promise.all([
-    state.loadExpenses(),
-    state.loadGoals(),
-    state.loadCategories(),
-    state.loadBudgets(),
-    state.loadInvestments(),
-    state.loadDebts(),
-    state.loadBanks(),
-    state.loadCreditCards(),
-    state.loadCreditCardPurchases(),
-    state.loadRecurringServices(),
-    state.loadServicePayments(),
-  ]);
-
-  console.log('Store initialized');
-};
-
-// Call initialization
-initializeStore();
+// NOTE: Data is loaded lazily when entering each screen
+// Only essential data (expenses, categories) is loaded after login
+// See LoginScreen.tsx for initial data loading
