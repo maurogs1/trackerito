@@ -24,8 +24,8 @@ export const createCreditCardsSlice: StateCreator<StoreState, [], [], CreditCard
   loadCreditCards: async () => {
     set({ isLoadingCreditCards: true });
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const user = get().user;
+      if (!user || !user.id) return;
 
       const { data, error } = await supabase
         .from('credit_cards')
@@ -44,8 +44,8 @@ export const createCreditCardsSlice: StateCreator<StoreState, [], [], CreditCard
 
   loadCreditCardPurchases: async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const user = get().user;
+      if (!user || !user.id) return;
 
       const { data, error } = await supabase
         .from('credit_card_purchases')
@@ -77,8 +77,8 @@ export const createCreditCardsSlice: StateCreator<StoreState, [], [], CreditCard
 
   addCreditCard: async (cardData) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user authenticated');
+      const user = get().user;
+      if (!user || !user.id) throw new Error('No user authenticated');
 
       const newCard = {
         ...cardData,
@@ -123,8 +123,8 @@ export const createCreditCardsSlice: StateCreator<StoreState, [], [], CreditCard
 
   addCreditCardPurchase: async (purchaseData) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user authenticated');
+      const user = get().user;
+      if (!user || !user.id) throw new Error('No user authenticated');
 
       const insertData: any = {
         credit_card_id: purchaseData.credit_card_id,

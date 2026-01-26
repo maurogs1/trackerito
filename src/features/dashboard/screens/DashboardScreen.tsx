@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,25 +10,34 @@ import { formatCurrencyDisplay } from '../../../shared/utils/currency'; // Fixed
 import { BENEFITS, BANKS, formatBenefitDays } from '../../benefits/mockBenefits';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { DashboardSkeleton } from '../../../shared/components/Skeleton';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 
-const { width } = Dimensions.get('window');
 const GRID_GAP = 16;
-const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1; // Subtract 1px to avoid rounding issues
 
 export default function DashboardScreen() {
   const navigation = useNavigation<DashboardScreenNavigationProp>();
-  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, goals, categories, getBudgetProgress, userBanks, getBalance, loadIncomes, incomes, getMonthlyIncome, loadRecurringServices, loadServicePayments, recurringServices, toggleHideFinancialData } = useStore();
+  const { width } = useWindowDimensions();
+  const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1; // Subtract 1px to avoid rounding issues
+  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, goals, categories, getBudgetProgress, userBanks, getBalance, loadIncomes, incomes, getMonthlyIncome, loadRecurringServices, loadServicePayments, recurringServices, toggleHideIncome, toggleHideExpenses } = useStore();
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const summary = getSummary();
   const balance = getBalance();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
-  const hideData = preferences.hideFinancialData ?? false;
+  const hideIncome = preferences.hideIncome ?? false;
+  const hideExpenses = preferences.hideExpenses ?? false;
 
-  // Helper para mostrar montos o asteriscos
-  const displayAmount = (amount: number, prefix: string = '$') => {
-    if (hideData) return '••••••';
+  // Helpers para mostrar montos o asteriscos
+  const displayIncome = (amount: number, prefix: string = '$') => {
+    if (hideIncome) return '••••••';
+    return `${prefix}${formatCurrencyDisplay(amount)}`;
+  };
+
+  const displayExpense = (amount: number, prefix: string = '$') => {
+    if (hideExpenses) return '••••••';
     return `${prefix}${formatCurrencyDisplay(amount)}`;
   };
 
@@ -36,10 +45,28 @@ export default function DashboardScreen() {
   const currentExpenses = getCurrentExpenses();
 
   useEffect(() => {
-    loadExpenses();
-    loadIncomes();
-    loadRecurringServices();
-    loadServicePayments();
+    const loadData = async () => {
+      setIsLoading(true);
+      await Promise.all([
+        loadExpenses(),
+        loadIncomes(),
+        loadRecurringServices(),
+        loadServicePayments(),
+      ]);
+      setIsLoading(false);
+    };
+    loadData();
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      loadExpenses(),
+      loadIncomes(),
+      loadRecurringServices(),
+      loadServicePayments(),
+    ]);
+    setRefreshing(false);
   }, []);
 
   const topCategory = useMemo(() => {
@@ -74,7 +101,7 @@ export default function DashboardScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      padding: 16,
+      padding: 8,
     },
     header: {
       flexDirection: 'row',
@@ -353,9 +380,49 @@ export default function DashboardScreen() {
     },
   });
 
+  // Show skeleton while loading
+  if (isLoading && expenses.length === 0) {
+    return (
+      <View style={{ flex: 1, backgroundColor: currentTheme.background }}>
+        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.username}>
+                Hola, {(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Invitado').split(' ')[0]}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+              <Image
+                source={{
+                  uri: user?.user_metadata?.avatar_url ||
+                       user?.user_metadata?.picture ||
+                       (user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado')
+                }}
+                style={styles.avatar}
+              />
+            </TouchableOpacity>
+          </View>
+          <DashboardSkeleton isDark={isDark} />
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[currentTheme.primary]}
+            tintColor={currentTheme.primary}
+          />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <View>
@@ -364,13 +431,13 @@ export default function DashboardScreen() {
             </Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-            <Image 
-              source={{ 
-                uri: user?.user_metadata?.avatar_url || 
-                     user?.user_metadata?.picture || 
-                     (user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado') 
-              }} 
-              style={styles.avatar} 
+            <Image
+              source={{
+                uri: user?.user_metadata?.avatar_url ||
+                     user?.user_metadata?.picture ||
+                     (user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado')
+              }}
+              style={styles.avatar}
             />
           </TouchableOpacity>
         </View>
@@ -381,26 +448,52 @@ export default function DashboardScreen() {
           onPress={() => navigation.navigate('Income')}
           activeOpacity={0.9}
         >
-          {/* Botón para ocultar/mostrar datos */}
-          <TouchableOpacity
-            style={{ position: 'absolute', top: 16, right: 16, padding: 8 }}
-            onPress={(e) => {
-              e.stopPropagation();
-              toggleHideFinancialData();
-            }}
-          >
-            <Ionicons
-              name={hideData ? 'eye-off-outline' : 'eye-outline'}
-              size={24}
-              color="rgba(255,255,255,0.8)"
-            />
-          </TouchableOpacity>
+          {/* Botones para ocultar/mostrar datos - dos iconos separados */}
+          <View style={{ position: 'absolute', top: 16, right: 16, flexDirection: 'row', gap: 8 }}>
+            {/* Ocultar Ingresos */}
+            <TouchableOpacity
+              style={{ padding: 6, backgroundColor: hideIncome ? 'rgba(255,255,255,0.2)' : 'transparent', borderRadius: 16 }}
+              onPress={(e) => {
+                e.stopPropagation();
+                toggleHideIncome();
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="wallet-outline" size={16} color="rgba(255,255,255,0.8)" />
+                <Ionicons
+                  name={hideIncome ? 'eye-off-outline' : 'eye-outline'}
+                  size={16}
+                  color="rgba(255,255,255,0.8)"
+                />
+              </View>
+            </TouchableOpacity>
+            {/* Ocultar Gastos */}
+            <TouchableOpacity
+              style={{ padding: 6, backgroundColor: hideExpenses ? 'rgba(255,255,255,0.2)' : 'transparent', borderRadius: 16 }}
+              onPress={(e) => {
+                e.stopPropagation();
+                toggleHideExpenses();
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="card-outline" size={16} color="rgba(255,255,255,0.8)" />
+                <Ionicons
+                  name={hideExpenses ? 'eye-off-outline' : 'eye-outline'}
+                  size={16}
+                  color="rgba(255,255,255,0.8)"
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.balanceLabel}>
             {balance.totalIncome > 0 ? 'Disponible Real' : 'Gastado este Mes'}
           </Text>
           <Text style={styles.balanceAmount}>
-            {displayAmount(balance.totalIncome > 0 ? Math.abs(balance.balance) : summary.totalBalance)}
+            {balance.totalIncome > 0
+              ? (hideIncome || hideExpenses ? '••••••' : `$${formatCurrencyDisplay(Math.abs(balance.balance))}`)
+              : displayExpense(summary.totalBalance)
+            }
           </Text>
 
           {balance.totalIncome > 0 && (
@@ -409,10 +502,10 @@ export default function DashboardScreen() {
               <View style={{ width: '100%', marginTop: 16 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
-                    Gastado: {displayAmount(balance.totalExpenses)}
+                    Gastado: {displayExpense(balance.totalExpenses)}
                   </Text>
                   <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
-                    de {displayAmount(balance.totalIncome)}
+                    de {displayIncome(balance.totalIncome)}
                   </Text>
                 </View>
                 <View style={{ height: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4, overflow: 'hidden' }}>
@@ -421,12 +514,12 @@ export default function DashboardScreen() {
                       height: '100%',
                       backgroundColor: '#FFFFFF',
                       borderRadius: 4,
-                      width: hideData ? '50%' : `${Math.min((balance.totalExpenses / balance.totalIncome) * 100, 100)}%`
+                      width: (hideIncome || hideExpenses) ? '50%' : `${Math.min((balance.totalExpenses / balance.totalIncome) * 100, 100)}%`
                     }}
                   />
                 </View>
                 <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 4, textAlign: 'center' }}>
-                  {hideData ? '••%' : `${Math.round((balance.totalExpenses / balance.totalIncome) * 100)}%`} del ingreso usado
+                  {(hideIncome || hideExpenses) ? '••%' : `${Math.round((balance.totalExpenses / balance.totalIncome) * 100)}%`} del ingreso usado
                 </Text>
               </View>
 
@@ -435,20 +528,20 @@ export default function DashboardScreen() {
                 <View style={{ alignItems: 'center', minWidth: 70 }}>
                   <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Ingresos</Text>
                   <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>
-                    {displayAmount(balance.totalIncome)}
+                    {displayIncome(balance.totalIncome)}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'center', minWidth: 70 }}>
                   <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Gastado</Text>
                   <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>
-                    {displayAmount(balance.totalExpenses)}
+                    {displayExpense(balance.totalExpenses)}
                   </Text>
                 </View>
                 {balance.pendingRecurring > 0 && (
                   <View style={{ alignItems: 'center', minWidth: 70 }}>
                     <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Por Pagar</Text>
                     <Text style={{ color: '#FFD54F', fontWeight: 'bold', fontSize: 14 }}>
-                      {displayAmount(balance.pendingRecurring)}
+                      {displayExpense(balance.pendingRecurring)}
                     </Text>
                   </View>
                 )}
@@ -470,53 +563,57 @@ export default function DashboardScreen() {
         <View style={styles.gridContainer}>
           {balance.totalIncome > 0 ? (
             <>
-              {/* Disponible por día */}
+              {/* Disponible por día - depende de ambos (income y expenses) */}
               <View style={styles.gridItem}>
-                <Ionicons name="today-outline" size={24} color={hideData ? currentTheme.textSecondary : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error)} />
+                <Ionicons name="today-outline" size={24} color={(hideIncome || hideExpenses) ? currentTheme.textSecondary : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error)} />
                 <Text style={styles.gridLabel}>Disponible/día</Text>
-                <Text style={[styles.gridValue, { color: hideData ? currentTheme.text : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error) }]}>
-                  {displayAmount(balance.availableDaily)}
+                <Text style={[styles.gridValue, { color: (hideIncome || hideExpenses) ? currentTheme.text : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error) }]}>
+                  {(hideIncome || hideExpenses) ? '••••••' : `$${formatCurrencyDisplay(balance.availableDaily)}`}
                 </Text>
                 <Text style={{ fontSize: 10, color: currentTheme.textSecondary, marginTop: 2 }}>
                   {balance.daysRemaining} días restantes
                 </Text>
               </View>
 
-              {/* Proyección del mes */}
+              {/* Proyección del mes - depende de expenses */}
               <View style={styles.gridItem}>
                 <Ionicons
-                  name={hideData ? "analytics-outline" : (summary.projectedBalance <= balance.totalIncome ? "checkmark-circle-outline" : "warning-outline")}
+                  name={hideExpenses ? "analytics-outline" : (summary.projectedBalance <= balance.totalIncome ? "checkmark-circle-outline" : "warning-outline")}
                   size={24}
-                  color={hideData ? currentTheme.textSecondary : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.warning || '#FF9800')}
+                  color={hideExpenses ? currentTheme.textSecondary : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.error || '#FF9800')}
                 />
                 <Text style={styles.gridLabel}>Proyección Mes</Text>
-                <Text style={[styles.gridValue, { color: hideData ? currentTheme.text : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.warning || '#FF9800') }]}>
-                  {displayAmount(summary.projectedBalance)}
+                <Text style={[styles.gridValue, { color: hideExpenses ? currentTheme.text : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.error || '#FF9800') }]}>
+                  {displayExpense(summary.projectedBalance)}
                 </Text>
                 <Text style={{ fontSize: 10, color: currentTheme.textSecondary, marginTop: 2 }}>
-                  {hideData ? '••••' : (summary.projectedBalance <= balance.totalIncome ? 'Vas bien ✓' : 'Podrías excederte')}
+                  {hideExpenses ? '••••' : (summary.projectedBalance <= balance.totalIncome ? 'Vas bien ✓' : 'Podrías excederte')}
                 </Text>
               </View>
 
-              {/* Gastos Fijos (incluye pendientes) */}
-              <View style={styles.gridItem}>
-                <Ionicons name="lock-closed-outline" size={24} color={currentTheme.primary} />
+              {/* Gastos Fijos (incluye pendientes) - Clickeable */}
+              <TouchableOpacity
+                style={styles.gridItem}
+                onPress={() => navigation.navigate('MonthlyPayments')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="flash-outline" size={24} color={currentTheme.primary} />
                 <Text style={styles.gridLabel}>Gastos Fijos</Text>
-                <Text style={styles.gridValue}>{displayAmount(summary.totalFixed + summary.pendingRecurring)}</Text>
+                <Text style={styles.gridValue}>{displayExpense(summary.totalFixed + summary.pendingRecurring)}</Text>
                 {summary.pendingRecurring > 0 && (
-                  <Text style={{ fontSize: 10, color: currentTheme.warning || '#FF9800', marginTop: 2 }}>
-                    {hideData ? '••••' : `$${formatCurrencyDisplay(summary.pendingRecurring)} pendiente`}
+                  <Text style={{ fontSize: 10, color: currentTheme.error || '#FF9800', marginTop: 2 }}>
+                    {hideExpenses ? '••••' : `$${formatCurrencyDisplay(summary.pendingRecurring)} pendiente`}
                   </Text>
                 )}
-              </View>
+              </TouchableOpacity>
 
               {/* Gastos Variables */}
               <View style={styles.gridItem}>
                 <Ionicons name="shuffle-outline" size={24} color={currentTheme.secondary} />
                 <Text style={styles.gridLabel}>Gastos Variables</Text>
-                <Text style={styles.gridValue}>{displayAmount(summary.totalVariable)}</Text>
+                <Text style={styles.gridValue}>{displayExpense(summary.totalVariable)}</Text>
                 <Text style={{ fontSize: 10, color: currentTheme.textSecondary, marginTop: 2 }}>
-                  {hideData ? '••••' : `$${formatCurrencyDisplay(summary.totalVariable / Math.max(1, summary.daysPassed))}/día prom.`}
+                  {hideExpenses ? '••••' : `$${formatCurrencyDisplay(summary.totalVariable / Math.max(1, summary.daysPassed))}/día prom.`}
                 </Text>
               </View>
             </>
@@ -525,17 +622,17 @@ export default function DashboardScreen() {
               <View style={styles.gridItem}>
                 <Ionicons name="calendar-outline" size={24} color={currentTheme.primary} />
                 <Text style={styles.gridLabel}>Promedio Semanal</Text>
-                <Text style={styles.gridValue}>{displayAmount(summary.weeklyAverage)}</Text>
+                <Text style={styles.gridValue}>{displayExpense(summary.weeklyAverage)}</Text>
               </View>
               <View style={styles.gridItem}>
                 <Ionicons name="trending-up-outline" size={24} color={currentTheme.secondary} />
                 <Text style={styles.gridLabel}>Proyección Mes</Text>
-                <Text style={styles.gridValue}>{displayAmount(summary.projectedBalance)}</Text>
+                <Text style={styles.gridValue}>{displayExpense(summary.projectedBalance)}</Text>
               </View>
               <View style={styles.gridItem}>
                 <Ionicons name="time-outline" size={24} color={currentTheme.error} />
                 <Text style={styles.gridLabel}>Mes Anterior</Text>
-                <Text style={styles.gridValue}>{displayAmount(summary.previousMonthBalance)}</Text>
+                <Text style={styles.gridValue}>{displayExpense(summary.previousMonthBalance)}</Text>
               </View>
               <View style={styles.gridItem}>
                 <Ionicons name={topCategory?.icon as any || "pricetag-outline"} size={24} color={topCategory?.color || currentTheme.text} />
@@ -659,51 +756,53 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
         
-        {(() => {
-           const today = new Date().getDay();
-           const allDailyBenefits = BENEFITS.filter(b => b.days.includes(today));
-           // If user has banks, filter by them. If not, show all.
-           const displayedBenefits = userBanks.length > 0 
-             ? allDailyBenefits.filter(b => userBanks.some(ub => ub.bankId === b.bankId))
-             : allDailyBenefits;
+        <View style={{ marginBottom: 24 }}>
+          {(() => {
+             const today = new Date().getDay();
+             const allDailyBenefits = BENEFITS.filter(b => b.days.includes(today));
+             // If user has banks, filter by them. If not, show all.
+             const displayedBenefits = userBanks.length > 0
+               ? allDailyBenefits.filter(b => userBanks.some(ub => ub.bankId === b.bankId))
+               : allDailyBenefits;
 
-           if (displayedBenefits.length === 0) {
+             if (displayedBenefits.length === 0) {
+               return (
+                 <View style={styles.emptyBenefits}>
+                   <Text style={styles.emptyBenefitsText}>
+                     {userBanks.length > 0
+                       ? "No hay beneficios hoy para tus bancos."
+                       : "No hay beneficios disponibles hoy."}
+                   </Text>
+                   <TouchableOpacity onPress={() => navigation.navigate('Benefits')}>
+                     <Text style={styles.configureLink}>Configurar mis tarjetas</Text>
+                   </TouchableOpacity>
+                 </View>
+               );
+             }
+
              return (
-               <View style={styles.emptyBenefits}>
-                 <Text style={styles.emptyBenefitsText}>
-                   {userBanks.length > 0 
-                     ? "No hay beneficios hoy para tus bancos." 
-                     : "No hay beneficios disponibles hoy."}
-                 </Text>
-                 <TouchableOpacity onPress={() => navigation.navigate('Benefits')}>
-                   <Text style={styles.configureLink}>Configurar mis tarjetas</Text>
-                 </TouchableOpacity>
-               </View>
+               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 16 }}>
+                 {displayedBenefits.slice(0, 5).map(benefit => {
+                   const bank = BANKS.find(bk => bk.id === benefit.bankId);
+                   if (!bank) return null;
+                   return (
+                     <View key={benefit.id} style={styles.benefitCard}>
+                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                         <Text style={[styles.benefitBank, { color: bank.color }]}>{bank.name}</Text>
+                         <Text style={styles.benefitDiscount}>{benefit.discountPercentage}% OFF</Text>
+                       </View>
+                       <Text style={styles.benefitDesc}>{benefit.description}</Text>
+                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                         <Text style={styles.benefitCategory}>{benefit.category}</Text>
+                         <Text style={{ fontSize: 10, color: currentTheme.textSecondary }}>{formatBenefitDays(benefit.days)}</Text>
+                       </View>
+                     </View>
+                   );
+                 })}
+               </ScrollView>
              );
-           }
-
-           return (
-             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 16 }}>
-               {displayedBenefits.slice(0, 5).map(benefit => {
-                 const bank = BANKS.find(bk => bk.id === benefit.bankId);
-                 if (!bank) return null;
-                 return (
-                   <View key={benefit.id} style={styles.benefitCard}>
-                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                       <Text style={[styles.benefitBank, { color: bank.color }]}>{bank.name}</Text>
-                       <Text style={styles.benefitDiscount}>{benefit.discountPercentage}% OFF</Text>
-                     </View>
-                     <Text style={styles.benefitDesc}>{benefit.description}</Text>
-                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                       <Text style={styles.benefitCategory}>{benefit.category}</Text>
-                       <Text style={{ fontSize: 10, color: currentTheme.textSecondary }}>{formatBenefitDays(benefit.days)}</Text>
-                     </View>
-                   </View>
-                 );
-               })}
-             </ScrollView>
-           );
-        })()}
+          })()}
+        </View>
 
         {/* Recent Expenses */}
         <View style={styles.sectionHeader}>

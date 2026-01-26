@@ -21,6 +21,7 @@ import AddCreditCardScreen from '../features/creditCards/screens/AddCreditCardSc
 import AddCreditCardPurchaseScreen from '../features/creditCards/screens/AddCreditCardPurchaseScreen';
 import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
 import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
+import PaymentGroupsScreen from '../features/monthlyPayments/screens/PaymentGroupsScreen';
 import IncomeScreen from '../features/income/screens/IncomeScreen';
 import { StatusBar } from 'expo-status-bar';
 import Toast from '../shared/components/Toast';
@@ -45,6 +46,7 @@ export type RootStackParamList = {
   AddCreditCardPurchase: { cardId: string };
   MonthlyPayments: undefined;
   RecurringServices: undefined;
+  PaymentGroups: undefined;
   Income: undefined;
 };
 
@@ -191,6 +193,7 @@ export default function AppNavigator() {
             <Stack.Screen name="AddCreditCardPurchase" component={AddCreditCardPurchaseScreen} options={{ title: 'Nuevo Consumo' }} />
             <Stack.Screen name="MonthlyPayments" component={MonthlyPaymentsScreen} options={{ title: 'Pagos del Mes' }} />
             <Stack.Screen name="RecurringServices" component={RecurringServicesScreen} options={{ title: 'Gastos Fijos' }} />
+            <Stack.Screen name="PaymentGroups" component={PaymentGroupsScreen} options={{ title: 'Grupos de Pago' }} />
             <Stack.Screen name="Income" component={IncomeScreen} options={{ title: 'Mis Ingresos' }} />
           </>
         )}

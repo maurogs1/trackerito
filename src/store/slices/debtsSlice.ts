@@ -60,8 +60,8 @@ export const createDebtsSlice: StateCreator<DebtsSlice> = (set, get) => ({
 
     addDebt: async (debt) => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('No user logged in');
+            const user = (get() as any).user;
+            if (!user || !user.id) throw new Error('No user logged in');
 
             const { data, error } = await supabase
                 .from('debts')

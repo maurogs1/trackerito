@@ -44,6 +44,9 @@ export interface Expense {
   isCreditCardPayment?: boolean; // DEPRECADO: usar paymentMethod === 'credit_card'
   serviceId?: string; // Foreign Key to RecurringService table
   debtId?: string; // Foreign Key to Debts table (for debt payments)
+
+  // Grupo de pago (ej: "TC Macro", "TC Visa")
+  paymentGroupId?: string; // Foreign Key to PaymentGroups table
 }
 
 export interface ExpenseSummary {
@@ -94,4 +97,14 @@ export interface ExpenseDebt {
   expenseId: string;
   debtId: string;
   amount: number;
+}
+
+// Grupos de Pago (ej: "TC Macro", "TC Visa")
+export interface PaymentGroup {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  description?: string;
+  createdAt: string;
 }

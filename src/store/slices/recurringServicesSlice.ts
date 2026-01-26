@@ -28,9 +28,9 @@ export const createRecurringServicesSlice: StateCreator<RecurringServicesSlice> 
     set({ isLoadingServices: true, error: null });
     try {
       const { supabase } = await import('../../services/supabase');
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
+      const user = (get() as any).user;
+
+      if (!user || !user.id) {
         set({ recurringServices: [], isLoadingServices: false });
         return;
       }
@@ -68,22 +68,33 @@ export const createRecurringServicesSlice: StateCreator<RecurringServicesSlice> 
   loadServicePayments: async () => {
     try {
       const { supabase } = await import('../../services/supabase');
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) return;
+      const state = get() as any;
+      const user = state.user;
 
-      // Obtener pagos a través de los servicios del usuario
-      const { data: services } = await supabase
-        .from('recurring_services')
-        .select('id')
-        .eq('user_id', user.id);
+      if (!user || !user.id) return;
 
-      if (!services || services.length === 0) {
+      // Usar los servicios ya cargados en el store si existen
+      let serviceIds: string[] = [];
+      if (state.recurringServices && state.recurringServices.length > 0) {
+        serviceIds = state.recurringServices.map((s: any) => s.id);
+      } else {
+        // Solo si no hay servicios en el store, hacer la query
+        const { data: services } = await supabase
+          .from('recurring_services')
+          .select('id')
+          .eq('user_id', user.id);
+
+        if (!services || services.length === 0) {
+          set({ servicePayments: [] });
+          return;
+        }
+        serviceIds = services.map(s => s.id);
+      }
+
+      if (serviceIds.length === 0) {
         set({ servicePayments: [] });
         return;
       }
-
-      const serviceIds = services.map(s => s.id);
 
       const { data, error } = await supabase
         .from('service_payments')
@@ -117,9 +128,9 @@ export const createRecurringServicesSlice: StateCreator<RecurringServicesSlice> 
     set({ error: null });
     try {
       const { supabase } = await import('../../services/supabase');
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error('No user authenticated');
+      const user = (get() as any).user;
+
+      if (!user || !user.id) throw new Error('No user authenticated');
 
       const { data, error } = await supabase
         .from('recurring_services')

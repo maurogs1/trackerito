@@ -27,7 +27,7 @@ const COLORS = ['#FF5722', '#9C27B0', '#2196F3', '#F44336', '#607D8B', '#4CAF50'
 export default function AddExpenseScreen() {
   const navigation = useNavigation<AddExpenseScreenNavigationProp>();
   const route = useRoute<AddExpenseScreenRouteProp>();
-  const { addExpense, addExpenseWithInstallments, updateExpense, expenses, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories, creditCards, banks, addCreditCardPurchase } = useStore();
+  const { addExpense, addExpenseWithInstallments, updateExpense, expenses, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories, creditCards, banks, addCreditCardPurchase, paymentGroups, loadPaymentGroups, addPaymentGroup } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const { showSuccess } = useToast();
@@ -58,6 +58,7 @@ export default function AddExpenseScreen() {
   // Installments State (independiente de tarjeta)
   const [hasInstallments, setHasInstallments] = useState(false);
   const [startingInstallment, setStartingInstallment] = useState('1'); // Cuota desde la que empezamos
+  const [selectedPaymentGroupId, setSelectedPaymentGroupId] = useState<string | null>(null);
 
   // Estado para cuotas en modo edición
   const [isPartOfInstallments, setIsPartOfInstallments] = useState(false);
@@ -69,6 +70,12 @@ export default function AddExpenseScreen() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState(ICONS[0]);
   const [newCategoryColor, setNewCategoryColor] = useState(COLORS[0]);
+
+  // Quick Add Payment Group Modal State
+  const [groupModalVisible, setGroupModalVisible] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupIcon, setNewGroupIcon] = useState('card');
+  const [newGroupColor, setNewGroupColor] = useState('#9C27B0');
 
   // UI State
   const [showAllCategories, setShowAllCategories] = useState(false);
@@ -95,6 +102,8 @@ export default function AddExpenseScreen() {
   useEffect(() => {
     // Ensure we have default categories if the list is empty or small
     ensureDefaultCategories();
+    // Load payment groups for installment selector
+    loadPaymentGroups();
   }, []);
 
   useEffect(() => {
@@ -300,6 +309,7 @@ export default function AddExpenseScreen() {
           financialType: financialType,
           paymentMethod: 'cash',
           installments: numInstallments,
+          paymentGroupId: selectedPaymentGroupId || undefined,
         });
         showSuccess(`Gasto en ${numInstallments} cuotas registrado (pagando cuota ${startingInst})`);
         navigation.goBack();
@@ -339,6 +349,26 @@ export default function AddExpenseScreen() {
       setNewCategoryName('');
       setNewCategoryIcon(ICONS[0]);
       setNewCategoryColor(COLORS[0]);
+    }
+  };
+
+  const handleQuickAddGroup = async () => {
+    if (newGroupName) {
+      const newGroup = await addPaymentGroup({
+        name: newGroupName,
+        icon: newGroupIcon,
+        color: newGroupColor,
+      });
+
+      if (newGroup) {
+        setSelectedPaymentGroupId(newGroup.id);
+        showSuccess(`Grupo "${newGroupName}" creado`);
+      }
+
+      setGroupModalVisible(false);
+      setNewGroupName('');
+      setNewGroupIcon('card');
+      setNewGroupColor('#9C27B0');
     }
   };
 
@@ -1045,6 +1075,96 @@ export default function AddExpenseScreen() {
                             </Text>
                           </View>
                         )}
+
+                        {/* Selector de Grupo de Pago (opcional) */}
+                        {parseInt(installments) > 1 && (
+                          <View style={{ marginTop: 16 }}>
+                            <Text style={{ color: currentTheme.textSecondary, marginBottom: 8 }}>
+                              Agrupar en (opcional)
+                            </Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                                <TouchableOpacity
+                                  style={{
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 8,
+                                    borderRadius: 20,
+                                    backgroundColor: !selectedPaymentGroupId ? currentTheme.primary : currentTheme.surface,
+                                    borderWidth: 1,
+                                    borderColor: !selectedPaymentGroupId ? currentTheme.primary : currentTheme.border,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                  }}
+                                  onPress={() => setSelectedPaymentGroupId(null)}
+                                >
+                                  <Ionicons
+                                    name="close-circle-outline"
+                                    size={16}
+                                    color={!selectedPaymentGroupId ? '#FFFFFF' : currentTheme.textSecondary}
+                                  />
+                                  <Text style={{
+                                    color: !selectedPaymentGroupId ? '#FFFFFF' : currentTheme.text,
+                                    fontWeight: !selectedPaymentGroupId ? 'bold' : 'normal',
+                                    fontSize: 13,
+                                  }}>
+                                    Sin grupo
+                                  </Text>
+                                </TouchableOpacity>
+                                {paymentGroups.map((group) => (
+                                  <TouchableOpacity
+                                    key={group.id}
+                                    style={{
+                                      paddingHorizontal: 14,
+                                      paddingVertical: 8,
+                                      borderRadius: 20,
+                                      backgroundColor: selectedPaymentGroupId === group.id ? group.color : currentTheme.surface,
+                                      borderWidth: 1,
+                                      borderColor: selectedPaymentGroupId === group.id ? group.color : currentTheme.border,
+                                      flexDirection: 'row',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                    }}
+                                    onPress={() => setSelectedPaymentGroupId(group.id)}
+                                  >
+                                    <Ionicons
+                                      name={group.icon as any}
+                                      size={16}
+                                      color={selectedPaymentGroupId === group.id ? '#FFFFFF' : group.color}
+                                    />
+                                    <Text style={{
+                                      color: selectedPaymentGroupId === group.id ? '#FFFFFF' : currentTheme.text,
+                                      fontWeight: selectedPaymentGroupId === group.id ? 'bold' : 'normal',
+                                      fontSize: 13,
+                                    }}>
+                                      {group.name}
+                                    </Text>
+                                  </TouchableOpacity>
+                                ))}
+                                {/* Botón + para crear grupo */}
+                                <TouchableOpacity
+                                  style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 18,
+                                    backgroundColor: currentTheme.surface,
+                                    borderWidth: 1,
+                                    borderColor: currentTheme.primary,
+                                    borderStyle: 'dashed',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                  }}
+                                  onPress={() => setGroupModalVisible(true)}
+                                >
+                                  <Ionicons name="add" size={20} color={currentTheme.primary} />
+                                </TouchableOpacity>
+                              </View>
+                            </ScrollView>
+                            <Text style={{ color: currentTheme.textSecondary, fontSize: 11, marginTop: 6, fontStyle: 'italic' }}>
+                              Agrupa cuotas para pagarlas juntas como "resumen"
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     )}
                   </View>
@@ -1343,7 +1463,7 @@ export default function AddExpenseScreen() {
                                 );
                             })}
                         </ScrollView>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={{ marginTop: 16, padding: 12, alignItems: 'center' }}
                             onPress={() => setCardModalVisible(false)}
                         >
@@ -1352,6 +1472,62 @@ export default function AddExpenseScreen() {
                     </View>
                 </TouchableWithoutFeedback>
             </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Quick Add Payment Group Modal */}
+      <Modal visible={groupModalVisible} transparent animationType="fade">
+        <TouchableWithoutFeedback onPress={() => setGroupModalVisible(false)}>
+          <View style={styles.modalContainer}>
+            <TouchableWithoutFeedback onPress={() => { }}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Nuevo Grupo de Pago</Text>
+
+                <Text style={styles.sectionLabel}>Nombre</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej: TC Macro, Cuotas Tienda"
+                  placeholderTextColor={currentTheme.textSecondary}
+                  value={newGroupName}
+                  onChangeText={setNewGroupName}
+                  autoFocus
+                />
+
+                <Text style={styles.sectionLabel}>Icono</Text>
+                <View style={styles.grid}>
+                  {['card', 'wallet', 'cash', 'cart', 'pricetag', 'layers', 'albums', 'folder'].map(icon => (
+                    <TouchableOpacity
+                      key={icon}
+                      style={[styles.selectionItem, newGroupIcon === icon && styles.selectedItem, { backgroundColor: currentTheme.surface }]}
+                      onPress={() => setNewGroupIcon(icon)}
+                    >
+                      <Ionicons name={icon as any} size={20} color={currentTheme.text} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.sectionLabel}>Color</Text>
+                <View style={styles.grid}>
+                  {COLORS.map(color => (
+                    <TouchableOpacity
+                      key={color}
+                      style={[styles.selectionItem, newGroupColor === color && styles.selectedItem, { backgroundColor: color }]}
+                      onPress={() => setNewGroupColor(color)}
+                    />
+                  ))}
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.button} onPress={() => setGroupModalVisible(false)}>
+                    <Text style={styles.buttonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.button} onPress={handleQuickAddGroup}>
+                    <Text style={styles.buttonText}>Crear</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
         </TouchableWithoutFeedback>
       </Modal>
     </View>

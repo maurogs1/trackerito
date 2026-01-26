@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, TouchableWithoutFeedback } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, TouchableWithoutFeedback, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
@@ -8,20 +8,22 @@ import { theme } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay } from '../../../shared/utils/currency';
 import { useToast } from '../../../shared/hooks/useToast';
-import { 
-  startOfWeek, 
-  endOfWeek, 
-  startOfMonth, 
-  endOfMonth, 
-  isWithinInterval, 
-  parseISO, 
-  format, 
-  addMonths, 
-  subMonths, 
-  startOfDay, 
-  endOfDay, 
-  eachDayOfInterval, 
-  isSameMonth, 
+import { ActivityListSkeleton } from '../../../shared/components/Skeleton';
+import { SwipeableRow } from '../../../shared/components/SwipeableRow';
+import {
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  isWithinInterval,
+  parseISO,
+  format,
+  addMonths,
+  subMonths,
+  startOfDay,
+  endOfDay,
+  eachDayOfInterval,
+  isSameMonth,
   isSameDay,
   getDay
 } from 'date-fns';
@@ -33,11 +35,31 @@ type AllExpensesScreenNavigationProp = NativeStackNavigationProp<RootStackParamL
 
 export default function AllExpensesScreen() {
   const navigation = useNavigation<AllExpensesScreenNavigationProp>();
-  const { getCurrentExpenses, categories, preferences, removeExpense } = useStore();
+  const { getCurrentExpenses, categories, preferences, removeExpense, expenses: allExpenses, loadExpenses } = useStore();
+  const [isLoading, setIsLoading] = useState(true);
   const expenses = getCurrentExpenses();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const { showSuccess, showError } = useToast();
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Load expenses if not already loaded
+  useEffect(() => {
+    const init = async () => {
+      if (allExpenses.length === 0) {
+        await loadExpenses();
+      }
+      setIsLoading(false);
+    };
+    init();
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadExpenses();
+    setRefreshing(false);
+  }, []);
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('all');
@@ -160,12 +182,35 @@ export default function AllExpensesScreen() {
     setShowDeleteModal(true);
   };
 
+  // Detectar si el gasto a eliminar es parte de un grupo de cuotas
+  const getInstallmentInfo = () => {
+    if (!expenseToDelete) return null;
+    const expense = allExpenses.find(e => e.id === expenseToDelete);
+    if (!expense) return null;
+
+    if (expense.parentExpenseId) {
+      // Es cuota hija - contar hermanas
+      const siblings = allExpenses.filter(e => e.parentExpenseId === expense.parentExpenseId);
+      return { isInstallment: true, count: siblings.length, description: expense.description };
+    } else if (expense.isParent) {
+      // Es padre - contar hijas
+      const children = allExpenses.filter(e => e.parentExpenseId === expense.id);
+      return { isInstallment: true, count: children.length, description: expense.description };
+    }
+    return null;
+  };
+
+  const installmentInfo = getInstallmentInfo();
+
   const confirmDelete = async () => {
     if (!expenseToDelete) return;
-    
+
     try {
       await removeExpense(expenseToDelete);
-      showSuccess('Gasto eliminado correctamente');
+      showSuccess(installmentInfo
+        ? `${installmentInfo.count} cuotas eliminadas correctamente`
+        : 'Gasto eliminado correctamente'
+      );
       setShowDeleteModal(false);
       setExpenseToDelete(null);
     } catch (error) {
@@ -899,8 +944,21 @@ export default function AllExpensesScreen() {
       </View>
 
       {/* Expense List */}
-      <ScrollView style={styles.listContainer} showsVerticalScrollIndicator={false}>
-        {filteredExpenses.length === 0 ? (
+      <ScrollView
+        style={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[currentTheme.primary]}
+            tintColor={currentTheme.primary}
+          />
+        }
+      >
+        {isLoading ? (
+          <ActivityListSkeleton isDark={isDark} count={5} />
+        ) : filteredExpenses.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons
               name="receipt-outline"
@@ -920,7 +978,7 @@ export default function AllExpensesScreen() {
               icon: 'pricetag',
               color: currentTheme.textSecondary,
             };
-            
+
             // Get all category names
             const categoryNames = expense.categoryIds
               ?.map(id => categories.find(c => c.id === id)?.name)
@@ -928,41 +986,35 @@ export default function AllExpensesScreen() {
               .join(', ');
 
             return (
-              <View key={expense.id} style={styles.expenseItem}>
-                <TouchableOpacity 
-                  style={styles.expenseItemContent}
-                  onPress={() => handleEdit(expense.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
-                    <Ionicons name={category.icon as any} size={18} color={category.color} />
-                  </View>
-                  <View style={styles.expenseDetails}>
-                    <Text style={styles.expenseDescription}>{expense.description}</Text>
-                    <Text style={[styles.expenseCategory, { marginTop: 4 }]} numberOfLines={1}>
-                      {categoryNames || category.name}
-                    </Text>
-                  </View>
-                  <View style={styles.rightColumn}>
-                    <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
-                    <Text style={styles.expenseDate}>
-                      {format(parseISO(expense.date), 'd MMM yyyy', { locale: es })}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-                <View style={styles.deleteButtonContainer}>
-                  <TouchableOpacity 
-                    style={styles.deleteButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleDelete(expense.id);
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              <SwipeableRow
+                key={expense.id}
+                onDelete={() => handleDelete(expense.id)}
+                backgroundColor={currentTheme.error}
+              >
+                <View style={styles.expenseItem}>
+                  <TouchableOpacity
+                    style={styles.expenseItemContent}
+                    onPress={() => handleEdit(expense.id)}
+                    activeOpacity={0.7}
                   >
-                    <Ionicons name="close" size={16} color={currentTheme.textSecondary} />
+                    <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
+                      <Ionicons name={category.icon as any} size={18} color={category.color} />
+                    </View>
+                    <View style={styles.expenseDetails}>
+                      <Text style={styles.expenseDescription}>{expense.description}</Text>
+                      <Text style={[styles.expenseCategory, { marginTop: 4 }]} numberOfLines={1}>
+                        {categoryNames || category.name}
+                      </Text>
+                    </View>
+                    <View style={styles.rightColumn}>
+                      <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
+                      <Text style={styles.expenseDate}>
+                        {format(parseISO(expense.date), 'd MMM yyyy', { locale: es })}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </SwipeableRow>
             );
           })
         )}
@@ -1157,9 +1209,14 @@ export default function AllExpensesScreen() {
                 <View style={styles.deleteModalIcon}>
                   <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
                 </View>
-                <Text style={styles.deleteModalTitle}>Eliminar Gasto</Text>
+                <Text style={styles.deleteModalTitle}>
+                  {installmentInfo ? 'Eliminar Cuotas' : 'Eliminar Gasto'}
+                </Text>
                 <Text style={styles.deleteModalMessage}>
-                  ¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.
+                  {installmentInfo
+                    ? `Este gasto tiene ${installmentInfo.count} cuotas. Se eliminarán TODAS las cuotas de "${installmentInfo.description}". Esta acción no se puede deshacer.`
+                    : '¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.'
+                  }
                 </Text>
                 <View style={styles.deleteModalButtons}>
                   <TouchableOpacity
@@ -1175,7 +1232,9 @@ export default function AllExpensesScreen() {
                     style={[styles.deleteModalButton, styles.deleteModalButtonConfirm]}
                     onPress={confirmDelete}
                   >
-                    <Text style={styles.deleteModalButtonConfirmText}>Eliminar</Text>
+                    <Text style={styles.deleteModalButtonConfirmText}>
+                      {installmentInfo ? `Eliminar ${installmentInfo.count} cuotas` : 'Eliminar'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>

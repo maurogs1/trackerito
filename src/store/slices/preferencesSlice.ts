@@ -4,7 +4,9 @@ import { UserPreferences } from '../../features/settings/types';
 export interface PreferencesSlice {
   preferences: UserPreferences;
   toggleTheme: () => void;
-  toggleHideFinancialData: () => void;
+  toggleHideFinancialData: () => void; // DEPRECADO
+  toggleHideIncome: () => void;
+  toggleHideExpenses: () => void;
 }
 
 export const createPreferencesSlice: StateCreator<PreferencesSlice> = (set) => ({
@@ -12,6 +14,8 @@ export const createPreferencesSlice: StateCreator<PreferencesSlice> = (set) => (
     theme: 'light',
     currency: '$',
     hideFinancialData: false,
+    hideIncome: false,
+    hideExpenses: false,
   },
 
   toggleTheme: () => {
@@ -23,11 +27,30 @@ export const createPreferencesSlice: StateCreator<PreferencesSlice> = (set) => (
     }));
   },
 
+  // DEPRECADO: mantener por compatibilidad
   toggleHideFinancialData: () => {
     set((state) => ({
       preferences: {
         ...state.preferences,
         hideFinancialData: !state.preferences.hideFinancialData,
+      },
+    }));
+  },
+
+  toggleHideIncome: () => {
+    set((state) => ({
+      preferences: {
+        ...state.preferences,
+        hideIncome: !state.preferences.hideIncome,
+      },
+    }));
+  },
+
+  toggleHideExpenses: () => {
+    set((state) => ({
+      preferences: {
+        ...state.preferences,
+        hideExpenses: !state.preferences.hideExpenses,
       },
     }));
   },

@@ -16,6 +16,7 @@ import { createBanksSlice, BanksSlice } from './slices/banksSlice';
 import { createCreditCardsSlice, CreditCardsSlice } from './slices/creditCardsSlice';
 import { createRecurringServicesSlice, RecurringServicesSlice } from './slices/recurringServicesSlice';
 import { createIncomeSlice, IncomeSlice } from './slices/incomeSlice';
+import { createPaymentGroupsSlice, PaymentGroupsSlice } from './slices/paymentGroupsSlice';
 
 // Combined store type
 export type StoreState = AuthSlice &
@@ -30,7 +31,8 @@ export type StoreState = AuthSlice &
   BanksSlice &
   CreditCardsSlice &
   RecurringServicesSlice &
-  IncomeSlice;
+  IncomeSlice &
+  PaymentGroupsSlice;
 
 // Create the combined store
 export const useStore = create<StoreState>()(
@@ -49,6 +51,7 @@ export const useStore = create<StoreState>()(
       ...createCreditCardsSlice(...a),
       ...createRecurringServicesSlice(...a),
       ...createIncomeSlice(...a),
+      ...createPaymentGroupsSlice(...a),
     }),
     {
       name: 'trackerito-storage',
@@ -70,6 +73,7 @@ export const useStore = create<StoreState>()(
         servicePayments: state.servicePayments,
         incomes: state.incomes,
         preferences: state.preferences,
+        paymentGroups: state.paymentGroups,
       }),
     }
   )

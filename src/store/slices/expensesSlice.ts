@@ -55,6 +55,7 @@ export const createExpensesSlice: StateCreator<
               ? item.expense_categories.map((ec: any) => ec.category_id)
               : [],
             // Mapear nuevos campos desde snake_case a camelCase (con defaults para compatibilidad)
+            financialType: item.financial_type || 'unclassified',
             paymentMethod: item.payment_method || 'cash',
             paymentStatus: item.payment_status || 'paid',
             installmentNumber: item.installment_number || 1,
@@ -66,6 +67,7 @@ export const createExpensesSlice: StateCreator<
             isCreditCardPayment: item.is_credit_card_payment,
             serviceId: item.service_id,
             debtId: item.debt_id,
+            paymentGroupId: item.payment_group_id,
           }));
           set({ expenses: loadedExpenses, isLoading: false, error: null } as any);
         }
@@ -102,7 +104,8 @@ export const createExpensesSlice: StateCreator<
           credit_card_id: expenseData.creditCardId,
           is_credit_card_payment: expenseData.isCreditCardPayment,
           service_id: expenseData.serviceId,
-          debt_id: expenseData.debtId
+          debt_id: expenseData.debtId,
+          payment_group_id: expenseData.paymentGroupId,
         };
         
         console.log('Inserting expense:', expenseToInsert);
@@ -188,6 +191,7 @@ export const createExpensesSlice: StateCreator<
           isCreditCardPayment: data[0].is_credit_card_payment,
           serviceId: data[0].service_id,
           debtId: data[0].debt_id,
+          paymentGroupId: data[0].payment_group_id,
         };
 
         set((state) => {
@@ -220,57 +224,143 @@ export const createExpensesSlice: StateCreator<
     set({ isLoading: true, error: null } as any);
     try {
       const { supabase } = await import('../../services/supabase');
-        
-        // 1. Update expenses table
-        const updateData: any = {};
-        if (expenseData.amount !== undefined) updateData.amount = expenseData.amount;
-        if (expenseData.description !== undefined) updateData.description = expenseData.description;
-        if (expenseData.date !== undefined) updateData.date = expenseData.date;
-        if (expenseData.financialType !== undefined) updateData.financial_type = expenseData.financialType;
+      const state = get() as any;
+      const expense = state.expenses.find((e: Expense) => e.id === id);
 
-        const { error: updateError } = await supabase
-          .from('expenses')
-          .update(updateData)
-          .eq('id', id);
+      // Determinar si es parte de un grupo de cuotas
+      let siblingIds: string[] = [];
+      let parentId: string | null = null;
 
-        if (updateError) throw updateError;
+      if (expense?.parentExpenseId) {
+        // Es una cuota hija - obtener todas las hermanas y el padre
+        parentId = expense.parentExpenseId;
+        siblingIds = state.expenses
+          .filter((e: Expense) => e.parentExpenseId === parentId)
+          .map((e: Expense) => e.id);
+      } else if (expense?.isParent) {
+        // Es el padre - obtener todas las hijas
+        parentId = id;
+        siblingIds = state.expenses
+          .filter((e: Expense) => e.parentExpenseId === id)
+          .map((e: Expense) => e.id);
+      }
 
-        // 2. Update categories if provided
-        if (expenseData.categoryIds) {
-          // Delete existing links
-          const { error: deleteError } = await supabase
+      // Campos que se propagan a todas las cuotas
+      const propagateFields = ['financialType', 'categoryIds'];
+      const shouldPropagate = siblingIds.length > 0 &&
+        propagateFields.some(field => expenseData[field as keyof typeof expenseData] !== undefined);
+
+      // 1. Update the main expense
+      const updateData: any = {};
+      if (expenseData.amount !== undefined) updateData.amount = expenseData.amount;
+      if (expenseData.description !== undefined) updateData.description = expenseData.description;
+      if (expenseData.date !== undefined) updateData.date = expenseData.date;
+      if (expenseData.financialType !== undefined) updateData.financial_type = expenseData.financialType;
+
+      const { error: updateError } = await supabase
+        .from('expenses')
+        .update(updateData)
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      // 2. Update categories for main expense
+      if (expenseData.categoryIds) {
+        const { error: deleteError } = await supabase
+          .from('expense_categories')
+          .delete()
+          .eq('expense_id', id);
+
+        if (deleteError) throw deleteError;
+
+        if (expenseData.categoryIds.length > 0) {
+          const junctionData = expenseData.categoryIds.map(catId => ({
+            expense_id: id,
+            category_id: catId
+          }));
+
+          const { error: insertError } = await supabase
             .from('expense_categories')
-            .delete()
-            .eq('expense_id', id);
-            
-          if (deleteError) throw deleteError;
+            .insert(junctionData);
 
-          // Insert new links
-          if (expenseData.categoryIds.length > 0) {
-             const junctionData = expenseData.categoryIds.map(catId => ({
-              expense_id: id,
-              category_id: catId
-            }));
+          if (insertError) throw insertError;
+        }
+      }
 
-            const { error: insertError } = await supabase
-              .from('expense_categories')
-              .insert(junctionData);
-              
-            if (insertError) throw insertError;
+      // 3. Propagar cambios a cuotas hermanas (categoría y financialType)
+      if (shouldPropagate) {
+        const idsToUpdate = parentId ? [parentId, ...siblingIds] : siblingIds;
+        const otherIds = idsToUpdate.filter(sibId => sibId !== id);
+
+        // Actualizar financialType en todas las cuotas hermanas y el padre (1 sola petición)
+        if (expenseData.financialType !== undefined && otherIds.length > 0) {
+          const { error: siblingUpdateError } = await supabase
+            .from('expenses')
+            .update({ financial_type: expenseData.financialType })
+            .in('id', otherIds);
+
+          if (siblingUpdateError) {
+            logError(siblingUpdateError, 'updateExpense-propagateFinancialType');
           }
         }
 
-        // 3. Update local state
-        set((state) => {
-          const updatedExpenses = state.expenses.map(e =>
-            e.id === id ? { ...e, ...expenseData } : e
-          );
-          // Re-sort if date was changed
-          return {
-            expenses: expenseData.date ? sortExpensesByDate(updatedExpenses) : updatedExpenses,
-            isLoading: false
-          } as any;
+        // Actualizar categorías en todas las cuotas hermanas (2 peticiones: 1 DELETE batch + 1 INSERT batch)
+        if (expenseData.categoryIds && otherIds.length > 0) {
+          // 1. Eliminar todas las categorías existentes de las hermanas (1 petición)
+          const { error: deleteError } = await supabase
+            .from('expense_categories')
+            .delete()
+            .in('expense_id', otherIds);
+
+          if (deleteError) {
+            logError(deleteError, 'updateExpense-deleteSiblingCategories');
+          }
+
+          // 2. Insertar todas las nuevas categorías para todas las hermanas (1 petición)
+          if (expenseData.categoryIds.length > 0) {
+            const allSiblingCategoryData: { expense_id: string; category_id: string }[] = [];
+            for (const sibId of otherIds) {
+              for (const catId of expenseData.categoryIds) {
+                allSiblingCategoryData.push({ expense_id: sibId, category_id: catId });
+              }
+            }
+
+            const { error: insertError } = await supabase
+              .from('expense_categories')
+              .insert(allSiblingCategoryData);
+
+            if (insertError) {
+              logError(insertError, 'updateExpense-insertSiblingCategories');
+            }
+          }
+        }
+      }
+
+      // 4. Update local state (incluyendo hermanas si corresponde)
+      set((state) => {
+        let updatedExpenses = state.expenses.map(e => {
+          if (e.id === id) {
+            return { ...e, ...expenseData };
+          }
+          // Propagar a hermanas
+          if (shouldPropagate && (siblingIds.includes(e.id) || e.id === parentId)) {
+            const propagatedData: any = {};
+            if (expenseData.financialType !== undefined) {
+              propagatedData.financialType = expenseData.financialType;
+            }
+            if (expenseData.categoryIds !== undefined) {
+              propagatedData.categoryIds = expenseData.categoryIds;
+            }
+            return { ...e, ...propagatedData };
+          }
+          return e;
         });
+
+        return {
+          expenses: expenseData.date ? sortExpensesByDate(updatedExpenses) : updatedExpenses,
+          isLoading: false
+        } as any;
+      });
     } catch (error) {
       logError(error, 'updateExpense');
       const errorMessage = getUserFriendlyMessage(error, 'update');
@@ -281,20 +371,50 @@ export const createExpensesSlice: StateCreator<
   removeExpense: async (id) => {
     set({ isLoading: true, error: null } as any);
     try {
-        // Remove from Supabase
-        const { supabase } = await import('../../services/supabase');
-        const { error } = await supabase
-          .from('expenses')
-          .delete()
-          .eq('id', id);
-        
-        if (error) {
-          logError(error, 'removeExpense');
-          throw error;
-        }
-      
+      const { supabase } = await import('../../services/supabase');
+      const state = get() as any;
+      const expense = state.expenses.find((e: Expense) => e.id === id);
+
+      if (!expense) {
+        throw new Error('Gasto no encontrado');
+      }
+
+      let idsToDelete: string[] = [id];
+      let parentIdToDelete: string | null = null;
+
+      // Si es una cuota hija, encontrar el padre y todas las hermanas
+      if (expense.parentExpenseId) {
+        parentIdToDelete = expense.parentExpenseId;
+        // Obtener todas las cuotas hermanas (incluyendo la actual)
+        const siblings = state.expenses.filter(
+          (e: Expense) => e.parentExpenseId === expense.parentExpenseId
+        );
+        idsToDelete = siblings.map((e: Expense) => e.id);
+        idsToDelete.push(expense.parentExpenseId); // Agregar el padre
+      }
+      // Si es un gasto padre, encontrar todas las hijas
+      else if (expense.isParent) {
+        const children = state.expenses.filter(
+          (e: Expense) => e.parentExpenseId === id
+        );
+        idsToDelete = [id, ...children.map((e: Expense) => e.id)];
+      }
+
+      // Eliminar todos los gastos relacionados de Supabase
+      // (Las expense_categories se eliminan por CASCADE en la BD)
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .in('id', idsToDelete);
+
+      if (error) {
+        logError(error, 'removeExpense');
+        throw error;
+      }
+
+      // Actualizar estado local
       set((state) => ({
-        expenses: state.expenses.filter((e) => e.id !== id),
+        expenses: state.expenses.filter((e) => !idsToDelete.includes(e.id)),
         isLoading: false,
         error: null
       } as any));
@@ -338,6 +458,7 @@ export const createExpensesSlice: StateCreator<
         is_parent: true,
         credit_card_id: expenseData.creditCardId,
         service_id: expenseData.serviceId,
+        payment_group_id: expenseData.paymentGroupId,
       };
 
       const { data: parentData, error: parentError } = await supabase
@@ -425,6 +546,7 @@ export const createExpensesSlice: StateCreator<
           is_parent: false,
           credit_card_id: expenseData.creditCardId,
           service_id: expenseData.serviceId,
+          payment_group_id: expenseData.paymentGroupId,
         });
       }
 
@@ -438,7 +560,37 @@ export const createExpensesSlice: StateCreator<
         throw installmentsError;
       }
 
-      // 5. Actualizar estado local
+      // 5. Asociar categorías a cada cuota hija
+      if (expenseData.categoryIds && expenseData.categoryIds.length > 0) {
+        const validCategoryIds = expenseData.categoryIds.filter(catId =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(catId)
+        );
+
+        if (validCategoryIds.length > 0 && installmentsInserted && installmentsInserted.length > 0) {
+          // Crear asociaciones de categorías para cada cuota hija
+          const childCategoryAssociations: { expense_id: string; category_id: string }[] = [];
+
+          for (const installment of installmentsInserted) {
+            for (const catId of validCategoryIds) {
+              childCategoryAssociations.push({
+                expense_id: installment.id,
+                category_id: catId,
+              });
+            }
+          }
+
+          const { error: childCategoriesError } = await supabase
+            .from('expense_categories')
+            .insert(childCategoryAssociations);
+
+          if (childCategoriesError) {
+            logError(childCategoriesError, 'addExpenseWithInstallments-childCategories');
+            // No throw, continuar aunque falle (las categorías se pueden asociar manualmente)
+          }
+        }
+      }
+
+      // 6. Actualizar estado local
       const parentExpense: Expense = {
         id: parentData[0].id,
         amount: 0,
@@ -455,6 +607,7 @@ export const createExpensesSlice: StateCreator<
         isParent: parentData[0].is_parent,
         creditCardId: parentData[0].credit_card_id,
         serviceId: parentData[0].service_id,
+        paymentGroupId: parentData[0].payment_group_id,
       };
 
       const childExpenses: Expense[] = installmentsInserted.map((item: any) => ({
@@ -473,6 +626,7 @@ export const createExpensesSlice: StateCreator<
         isParent: item.is_parent,
         creditCardId: item.credit_card_id,
         serviceId: item.service_id,
+        paymentGroupId: item.payment_group_id,
       }));
 
       set((state) => {
