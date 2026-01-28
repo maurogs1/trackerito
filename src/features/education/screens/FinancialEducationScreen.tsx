@@ -624,11 +624,11 @@ export default function FinancialEducationScreen() {
         </View>
       )}
 
-      <TouchableOpacity 
-        style={[styles.button, { marginTop: 24 }]} 
-        onPress={() => navigation.navigate('Budgets')}
+      <TouchableOpacity
+        style={[styles.button, { marginTop: 24 }]}
+        onPress={() => navigation.navigate('Dashboard')}
       >
-        <Text style={styles.buttonText}>Aplicar Presupuestos</Text>
+        <Text style={styles.buttonText}>Ver mi Dashboard</Text>
       </TouchableOpacity>
     </ScrollView>
   );

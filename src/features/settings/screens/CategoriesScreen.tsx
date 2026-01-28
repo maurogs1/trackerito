@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../../../shared/hooks/useToast';
 
@@ -12,6 +12,7 @@ export default function CategoriesScreen() {
   const { categories, addCategory, removeCategory, preferences } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const common = createCommonStyles(currentTheme);
   const { showSuccess } = useToast();
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -44,9 +45,9 @@ export default function CategoriesScreen() {
       `¿Estás seguro de que quieres eliminar "${name}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Eliminar', 
-          style: 'destructive', 
+        {
+          text: 'Eliminar',
+          style: 'destructive',
           onPress: async () => {
             await removeCategory(id);
             showSuccess(`Categoría "${name}" eliminada`);
@@ -60,18 +61,13 @@ export default function CategoriesScreen() {
     container: {
       flex: 1,
       backgroundColor: currentTheme.background,
-      padding: 16,
+      padding: spacing.lg,
     },
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 24,
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: currentTheme.text,
+      marginBottom: spacing.xxl,
     },
     addButton: {
       backgroundColor: currentTheme.primary,
@@ -85,69 +81,21 @@ export default function CategoriesScreen() {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: currentTheme.card,
-      padding: 16,
-      borderRadius: 12,
-      marginBottom: 12,
+      padding: spacing.lg,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.md,
       justifyContent: 'space-between',
     },
     categoryInfo: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
-    },
-    iconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    categoryName: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: currentTheme.text,
-    },
-    deleteButton: {
-      padding: 8,
-    },
-    modalContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    modalContent: {
-      backgroundColor: currentTheme.card,
-      padding: 20,
-      borderRadius: 16,
-      width: '90%',
-      maxHeight: '80%',
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      marginBottom: 16,
-      color: currentTheme.text,
-    },
-    input: {
-      backgroundColor: currentTheme.surface,
-      color: currentTheme.text,
-      padding: 12,
-      borderRadius: 8,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: currentTheme.border,
-    },
-    sectionLabel: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-      marginBottom: 8,
+      gap: spacing.md,
     },
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
-      marginBottom: 16,
+      gap: spacing.md,
+      marginBottom: spacing.lg,
     },
     selectionItem: {
       width: 40,
@@ -164,22 +112,15 @@ export default function CategoriesScreen() {
     modalButtons: {
       flexDirection: 'row',
       justifyContent: 'flex-end',
-      gap: 12,
-      marginTop: 16,
-    },
-    button: {
-      padding: 10,
-    },
-    buttonText: {
-      color: currentTheme.primary,
-      fontWeight: 'bold',
+      gap: spacing.md,
+      marginTop: spacing.lg,
     },
   });
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mis Categorías</Text>
+        <Text style={[typography.title, { color: currentTheme.text }]}>Mis Categorías</Text>
         <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -191,13 +132,13 @@ export default function CategoriesScreen() {
         renderItem={({ item }) => (
           <View style={styles.categoryItem}>
             <View style={styles.categoryInfo}>
-              <View style={[styles.iconContainer, { backgroundColor: item.color + '20' }]}>
+              <View style={[common.iconContainerSmall, { backgroundColor: item.color + '20' }]}>
                 <Ionicons name={item.icon as any} size={20} color={item.color} />
               </View>
-              <Text style={styles.categoryName}>{item.name}</Text>
+              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{item.name}</Text>
             </View>
-            <TouchableOpacity 
-              style={styles.deleteButton} 
+            <TouchableOpacity
+              style={{ padding: spacing.sm }}
               onPress={() => handleDeleteCategory(item.id, item.name)}
             >
               <Ionicons name="trash-outline" size={20} color={currentTheme.error} />
@@ -207,24 +148,30 @@ export default function CategoriesScreen() {
       />
 
       <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Nueva Categoría</Text>
-            
-            <Text style={styles.sectionLabel}>Nombre</Text>
+        <View style={common.modalOverlay}>
+          <View style={common.modalContent}>
+            <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.lg }]}>
+              Nueva Categoría
+            </Text>
+
+            <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
+              Nombre
+            </Text>
             <TextInput
-              style={styles.input}
+              style={common.input}
               placeholder="Nombre de Categoría"
               placeholderTextColor={currentTheme.textSecondary}
               value={newName}
               onChangeText={setNewName}
             />
 
-            <Text style={styles.sectionLabel}>Icono</Text>
+            <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm, marginTop: spacing.lg }]}>
+              Icono
+            </Text>
             <View style={styles.grid}>
               {ICONS.map(icon => (
-                <TouchableOpacity 
-                  key={icon} 
+                <TouchableOpacity
+                  key={icon}
                   style={[styles.selectionItem, selectedIcon === icon && styles.selectedItem, { backgroundColor: currentTheme.surface }]}
                   onPress={() => setSelectedIcon(icon)}
                 >
@@ -233,11 +180,13 @@ export default function CategoriesScreen() {
               ))}
             </View>
 
-            <Text style={styles.sectionLabel}>Color</Text>
+            <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
+              Color
+            </Text>
             <View style={styles.grid}>
               {COLORS.map(color => (
-                <TouchableOpacity 
-                  key={color} 
+                <TouchableOpacity
+                  key={color}
                   style={[styles.selectionItem, selectedColor === color && styles.selectedItem, { backgroundColor: color }]}
                   onPress={() => setSelectedColor(color)}
                 />
@@ -245,11 +194,11 @@ export default function CategoriesScreen() {
             </View>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.button} onPress={() => setModalVisible(false)}>
-                <Text style={styles.buttonText}>Cancelar</Text>
+              <TouchableOpacity style={{ padding: spacing.md }} onPress={() => setModalVisible(false)}>
+                <Text style={[typography.buttonSmall, { color: currentTheme.primary }]}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.button} onPress={handleAddCategory}>
-                <Text style={styles.buttonText}>Guardar</Text>
+              <TouchableOpacity style={{ padding: spacing.md }} onPress={handleAddCategory}>
+                <Text style={[typography.buttonSmall, { color: currentTheme.primary }]}>Guardar</Text>
               </TouchableOpacity>
             </View>
           </View>

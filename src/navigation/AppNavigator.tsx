@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import React, { RefObject } from 'react';
+import { NavigationContainer, DefaultTheme, DarkTheme, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import { theme } from '../shared/theme';
@@ -7,18 +7,12 @@ import DashboardScreen from '../features/dashboard/screens/DashboardScreen';
 import AddExpenseScreen from '../features/expenses/screens/AddExpenseScreen';
 import AllExpensesScreen from '../features/expenses/screens/AllExpensesScreen';
 import FinancialEducationScreen from '../features/education/screens/FinancialEducationScreen';
-import BudgetsScreen from '../features/budgets/screens/BudgetsScreen';
 import BenefitsScreen from '../features/benefits/screens/BenefitsScreen';
 import SettingsScreen from '../features/settings/screens/SettingsScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
-import GoalsScreen from '../features/goals/screens/GoalsScreen';
-import InvestmentsScreen from '../features/investments/screens/InvestmentsScreen';
 import CategoriesScreen from '../features/settings/screens/CategoriesScreen';
 import BanksScreen from '../features/banks/screens/BanksScreen';
 import BankDetailScreen from '../features/banks/screens/BankDetailScreen';
-import CreditCardScreen from '../features/creditCards/screens/CreditCardScreen';
-import AddCreditCardScreen from '../features/creditCards/screens/AddCreditCardScreen';
-import AddCreditCardPurchaseScreen from '../features/creditCards/screens/AddCreditCardPurchaseScreen';
 import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
 import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
 import PaymentGroupsScreen from '../features/monthlyPayments/screens/PaymentGroupsScreen';
@@ -30,20 +24,14 @@ import { useToast } from '../shared/hooks/useToast';
 export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;
-  AddExpense: { expenseId?: string; amount?: number; description?: string; isCreditCardPayment?: boolean; creditCardId?: string } | undefined;
+  AddExpense: { expenseId?: string; amount?: number; description?: string } | undefined;
   Settings: undefined;
-  Goals: undefined;
   Categories: undefined;
   AllExpenses: undefined;
   FinancialEducation: undefined;
-  Budgets: undefined;
   Benefits: undefined;
-  Investments: undefined;
   Banks: undefined;
   BankDetail: { bankId: string; bankName: string };
-  CreditCard: { cardId: string; cardName: string };
-  AddCreditCard: { bankId: string };
-  AddCreditCardPurchase: { cardId: string };
   MonthlyPayments: undefined;
   RecurringServices: undefined;
   PaymentGroups: undefined;
@@ -52,7 +40,12 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-export default function AppNavigator() {
+interface AppNavigatorProps {
+  navigationRef?: RefObject<NavigationContainerRef<RootStackParamList> | null>;
+  onReady?: () => void;
+}
+
+export default function AppNavigator({ navigationRef, onReady }: AppNavigatorProps) {
   const { preferences, isAuthenticated } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
@@ -112,7 +105,11 @@ export default function AppNavigator() {
 
   return (
     <>
-      <NavigationContainer theme={navigationTheme}>
+      <NavigationContainer
+        ref={navigationRef}
+        onReady={onReady}
+        theme={navigationTheme}
+      >
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <Stack.Navigator
         screenOptions={{
@@ -152,24 +149,9 @@ export default function AppNavigator() {
               options={{ title: 'Configuración' }}
             />
             <Stack.Screen
-              name="Goals"
-              component={GoalsScreen}
-              options={{ title: 'Metas Financieras' }}
-            />
-            <Stack.Screen
-              name="Budgets"
-              component={BudgetsScreen}
-              options={{ title: 'Presupuestos' }}
-            />
-            <Stack.Screen
               name="Benefits"
               component={BenefitsScreen}
               options={{ title: 'Beneficios' }}
-            />
-            <Stack.Screen
-              name="Investments"
-              component={InvestmentsScreen}
-              options={{ title: 'Inversiones' }}
             />
             <Stack.Screen
               name="Categories"
@@ -188,9 +170,6 @@ export default function AppNavigator() {
             />
             <Stack.Screen name="Banks" component={BanksScreen} options={{ title: 'Mis Bancos' }} />
             <Stack.Screen name="BankDetail" component={BankDetailScreen} options={{ title: 'Detalle del Banco' }} />
-            <Stack.Screen name="CreditCard" component={CreditCardScreen} options={{ title: 'Tarjeta' }} />
-            <Stack.Screen name="AddCreditCard" component={AddCreditCardScreen} options={{ title: 'Nueva Tarjeta' }} />
-            <Stack.Screen name="AddCreditCardPurchase" component={AddCreditCardPurchaseScreen} options={{ title: 'Nuevo Consumo' }} />
             <Stack.Screen name="MonthlyPayments" component={MonthlyPaymentsScreen} options={{ title: 'Pagos del Mes' }} />
             <Stack.Screen name="RecurringServices" component={RecurringServicesScreen} options={{ title: 'Gastos Fijos' }} />
             <Stack.Screen name="PaymentGroups" component={PaymentGroupsScreen} options={{ title: 'Grupos de Pago' }} />

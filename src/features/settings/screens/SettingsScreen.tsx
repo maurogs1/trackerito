@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius } from '../../../shared/theme';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
@@ -16,18 +16,18 @@ export default function SettingsScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      padding: 20,
+      padding: spacing.xl,
     },
     section: {
       backgroundColor: currentTheme.card,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 20,
+      borderRadius: borderRadius.md,
+      padding: spacing.lg,
+      marginBottom: spacing.xl,
     },
     sectionTitle: {
-      fontSize: 14,
+      ...typography.captionBold,
       color: currentTheme.textSecondary,
-      marginBottom: 12,
+      marginBottom: spacing.md,
       textTransform: 'uppercase',
       letterSpacing: 1,
     },
@@ -35,14 +35,14 @@ export default function SettingsScreen() {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingVertical: 8,
+      paddingVertical: spacing.sm,
     },
     label: {
-      fontSize: 16,
+      ...typography.body,
       color: currentTheme.text,
     },
     value: {
-      fontSize: 16,
+      ...typography.body,
       color: currentTheme.textSecondary,
     },
   });
@@ -68,8 +68,8 @@ export default function SettingsScreen() {
           <Text style={styles.label}>Moneda</Text>
           <Text style={styles.value}>{preferences.currency}</Text>
         </View>
-        <TouchableOpacity 
-          style={[styles.row, { marginTop: 8 }]} 
+        <TouchableOpacity
+          style={[styles.row, { marginTop: spacing.sm }]}
           onPress={() => navigation.navigate('Categories')}
         >
           <Text style={styles.label}>Gestionar Categorías</Text>
@@ -85,17 +85,13 @@ export default function SettingsScreen() {
             <Text style={styles.value}>{user.email}</Text>
           </View>
         )}
-        <TouchableOpacity 
-          style={[styles.row, { paddingVertical: 12 }]} 
+        <TouchableOpacity
+          style={[styles.row, { paddingVertical: spacing.md }]}
           onPress={async () => {
-            console.log('Logout button pressed');
             try {
               const { signOut } = useStore.getState();
-              console.log('Calling signOut...');
               await signOut();
-              console.log('SignOut completed');
             } catch (error) {
-              console.error('Error during logout:', error);
               Alert.alert('Error', 'Hubo un problema al cerrar sesión');
             }
           }}

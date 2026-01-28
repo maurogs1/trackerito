@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { BANKS, BENEFITS, formatBenefitDays } from '../mockBenefits';
-import { Bank, CardBrand, CardLevel } from '../types';
+import { CardBrand, CardLevel } from '../types';
 
 if (Platform.OS === 'android') {
   if (UIManager.setLayoutAnimationEnabledExperimental) {
@@ -16,31 +16,23 @@ export default function BenefitsScreen() {
   const { preferences, userBanks, toggleUserBank, updateUserBank } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const common = createCommonStyles(currentTheme);
   const [expandedBank, setExpandedBank] = useState<string | null>(null);
 
-  const isBankSelected = (bankId: string) => {
-    return userBanks.some(b => b.bankId === bankId);
-  };
-
-  const getUserBank = (bankId: string) => {
-    return userBanks.find(b => b.bankId === bankId);
-  };
+  const isBankSelected = (bankId: string) => userBanks.some(b => b.bankId === bankId);
+  const getUserBank = (bankId: string) => userBanks.find(b => b.bankId === bankId);
 
   const handleToggleBank = (bankId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (isBankSelected(bankId)) {
-      // If already selected, just toggle expansion
       setExpandedBank(expandedBank === bankId ? null : bankId);
     } else {
-      // If not selected, select it and expand it
       toggleUserBank(bankId);
       setExpandedBank(bankId);
     }
   };
 
-  const handleCheckboxPress = (bankId: string) => {
-     toggleUserBank(bankId);
-  };
+  const handleCheckboxPress = (bankId: string) => toggleUserBank(bankId);
 
   const handleUpdateCard = (bankId: string, brand: CardBrand, level: CardLevel) => {
     const userBank = getUserBank(bankId);
@@ -50,38 +42,10 @@ export default function BenefitsScreen() {
   };
 
   const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: currentTheme.background,
-    },
-    content: {
-      padding: 20,
-      paddingBottom: 100,
-    },
-    header: {
-      marginBottom: 24,
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      marginBottom: 4,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      marginBottom: 16,
-      marginTop: 24,
-    },
     bankCard: {
       backgroundColor: currentTheme.card,
-      borderRadius: 16,
-      marginBottom: 12,
+      borderRadius: borderRadius.lg,
+      marginBottom: spacing.md,
       borderWidth: 2,
       borderColor: 'transparent',
       overflow: 'hidden',
@@ -93,165 +57,113 @@ export default function BenefitsScreen() {
     bankHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 16,
-    },
-    iconContainer: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 16,
-    },
-    bankInfo: {
-      flex: 1,
-    },
-    bankName: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-    },
-    bankStatus: {
-      fontSize: 12,
-      color: currentTheme.textSecondary,
-      marginTop: 2,
-    },
-    chevron: {
-      marginLeft: 12,
+      padding: spacing.lg,
     },
     configSection: {
-      padding: 16,
+      padding: spacing.lg,
       paddingTop: 0,
       borderTopWidth: 1,
       borderTopColor: currentTheme.border,
     },
     configLabel: {
-      fontSize: 12,
-      fontWeight: 'bold',
+      ...typography.captionBold,
       color: currentTheme.textSecondary,
-      marginTop: 12,
-      marginBottom: 8,
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
       textTransform: 'uppercase',
     },
     chipContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
-    },
-    chip: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 20,
-      backgroundColor: currentTheme.surface,
-      borderWidth: 1,
-      borderColor: currentTheme.border,
-    },
-    chipSelected: {
-      backgroundColor: currentTheme.primary,
-      borderColor: currentTheme.primary,
-    },
-    chipText: {
-      fontSize: 12,
-      color: currentTheme.text,
-    },
-    chipTextSelected: {
-      color: '#FFF',
-      fontWeight: 'bold',
+      gap: spacing.sm,
     },
     benefitsList: {
-      marginTop: 16,
+      marginTop: spacing.lg,
     },
     benefitItem: {
-      paddingVertical: 12,
+      paddingVertical: spacing.md,
       borderBottomWidth: 1,
       borderBottomColor: currentTheme.border,
     },
     benefitHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 4,
-    },
-    benefitDesc: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: currentTheme.text,
-      flex: 1,
-    },
-    benefitDiscount: {
-      fontSize: 14,
-      fontWeight: 'bold',
-      color: currentTheme.success,
+      marginBottom: spacing.xs,
     },
     benefitMeta: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: spacing.sm,
     },
     benefitDay: {
-      fontSize: 12,
+      ...typography.caption,
       color: currentTheme.textSecondary,
       backgroundColor: currentTheme.surface,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: borderRadius.sm,
     },
     benefitBrand: {
-      fontSize: 10,
+      ...typography.small,
       fontWeight: 'bold',
       color: '#FFF',
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: borderRadius.sm,
     },
   });
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Mis Beneficios</Text>
-        <Text style={styles.subtitle}>
+    <ScrollView
+      style={common.screenContainer}
+      contentContainerStyle={{ padding: spacing.xl, paddingBottom: spacing.md }}
+    >
+      <View style={common.screenHeader}>
+        <Text style={[typography.title, { color: currentTheme.text, marginBottom: spacing.xs }]}>
+          Mis Beneficios
+        </Text>
+        <Text style={[typography.subtitle, { color: currentTheme.textSecondary }]}>
           Configura tus tarjetas para ver descuentos exclusivos.
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Bancos Disponibles</Text>
-      
+      <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.lg, marginTop: spacing.xxl }]}>
+        Bancos Disponibles
+      </Text>
+
       {BANKS.map((bank) => {
         const selected = isBankSelected(bank.id);
         const userBank = getUserBank(bank.id);
         const currentCard = userBank?.cards[0] || { brand: 'visa', level: 'classic' };
-        // Expand if explicitly expanded OR if it's the only one selected (optional UX)
         const isExpanded = expandedBank === bank.id;
 
         return (
           <View key={bank.id} style={[styles.bankCard, selected && styles.bankCardSelected]}>
             <TouchableOpacity style={styles.bankHeader} onPress={() => handleToggleBank(bank.id)}>
-              <View style={[styles.iconContainer, { backgroundColor: bank.color }]}>
+              <View style={[common.iconContainer, { backgroundColor: bank.color, marginRight: spacing.lg }]}>
                 <Ionicons name={bank.logo as any} size={24} color="#FFF" />
               </View>
-              <View style={styles.bankInfo}>
-                <Text style={styles.bankName}>{bank.name}</Text>
-                <Text style={styles.bankStatus}>
+              <View style={{ flex: 1 }}>
+                <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{bank.name}</Text>
+                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: 2 }]}>
                   {selected ? `${currentCard.brand.toUpperCase()} ${currentCard.level.toUpperCase()}` : 'Tocar para conectar'}
                 </Text>
               </View>
-              
-              {/* Checkbox for selection state */}
-              <TouchableOpacity onPress={() => handleCheckboxPress(bank.id)} style={{ padding: 8 }}>
-                 <Ionicons 
-                   name={selected ? "checkbox" : "square-outline"} 
-                   size={24} 
-                   color={selected ? currentTheme.primary : currentTheme.textSecondary} 
-                 />
+
+              <TouchableOpacity onPress={() => handleCheckboxPress(bank.id)} style={{ padding: spacing.sm }}>
+                <Ionicons
+                  name={selected ? "checkbox" : "square-outline"}
+                  size={24}
+                  color={selected ? currentTheme.primary : currentTheme.textSecondary}
+                />
               </TouchableOpacity>
 
-              {/* Chevron for expansion state */}
               {selected && (
-                <Ionicons 
-                  name={isExpanded ? "chevron-up" : "chevron-down"} 
-                  size={20} 
-                  color={currentTheme.textSecondary} 
-                  style={styles.chevron} 
+                <Ionicons
+                  name={isExpanded ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={currentTheme.textSecondary}
+                  style={{ marginLeft: spacing.md }}
                 />
               )}
             </TouchableOpacity>
@@ -263,10 +175,10 @@ export default function BenefitsScreen() {
                   {(['visa', 'mastercard', 'amex'] as CardBrand[]).map(brand => (
                     <TouchableOpacity
                       key={brand}
-                      style={[styles.chip, currentCard.brand === brand && styles.chipSelected]}
+                      style={[common.chip, currentCard.brand === brand && common.chipSelected]}
                       onPress={() => handleUpdateCard(bank.id, brand, currentCard.level)}
                     >
-                      <Text style={[styles.chipText, currentCard.brand === brand && styles.chipTextSelected]}>
+                      <Text style={[common.chipText, currentCard.brand === brand && common.chipTextSelected]}>
                         {brand.toUpperCase()}
                       </Text>
                     </TouchableOpacity>
@@ -278,10 +190,10 @@ export default function BenefitsScreen() {
                   {(['classic', 'gold', 'platinum', 'black'] as CardLevel[]).map(level => (
                     <TouchableOpacity
                       key={level}
-                      style={[styles.chip, currentCard.level === level && styles.chipSelected]}
+                      style={[common.chip, currentCard.level === level && common.chipSelected]}
                       onPress={() => handleUpdateCard(bank.id, currentCard.brand, level)}
                     >
-                      <Text style={[styles.chipText, currentCard.level === level && styles.chipTextSelected]}>
+                      <Text style={[common.chipText, currentCard.level === level && common.chipTextSelected]}>
                         {level.toUpperCase()}
                       </Text>
                     </TouchableOpacity>
@@ -293,12 +205,15 @@ export default function BenefitsScreen() {
                   {BENEFITS.filter(b => b.bankId === bank.id).map(b => (
                     <View key={b.id} style={styles.benefitItem}>
                       <View style={styles.benefitHeader}>
-                        <Text style={styles.benefitDesc}>{b.description}</Text>
-                        <Text style={styles.benefitDiscount}>{b.discountPercentage}%</Text>
+                        <Text style={[typography.bodyBold, { color: currentTheme.text, flex: 1 }]}>
+                          {b.description}
+                        </Text>
+                        <Text style={[typography.bodyBold, { color: currentTheme.success }]}>
+                          {b.discountPercentage}%
+                        </Text>
                       </View>
                       <View style={styles.benefitMeta}>
                         <Text style={styles.benefitDay}>{formatBenefitDays(b.days)}</Text>
-                        {/* Mock Brand Badge - logic could be more complex */}
                         <Text style={[styles.benefitBrand, { backgroundColor: currentCard.brand === 'visa' ? '#1A1F71' : '#EB001B' }]}>
                           {currentCard.brand.toUpperCase()}
                         </Text>

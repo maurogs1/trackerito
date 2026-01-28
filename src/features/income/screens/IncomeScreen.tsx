@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay, formatCurrencyInput, parseCurrencyInput } from '../../../shared/utils/currency';
 import { Income, IncomeType, INCOME_TYPE_LABELS, INCOME_TYPE_ICONS, INCOME_TYPE_COLORS } from '../types';
@@ -35,6 +35,7 @@ export default function IncomeScreen() {
   } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const common = createCommonStyles(currentTheme);
   const { showSuccess, showError } = useToast();
 
   const [showModal, setShowModal] = useState(false);
@@ -157,40 +158,19 @@ export default function IncomeScreen() {
       backgroundColor: currentTheme.background,
     },
     header: {
-      padding: 20,
+      padding: spacing.xl,
       backgroundColor: currentTheme.success,
-      borderBottomLeftRadius: 24,
-      borderBottomRightRadius: 24,
-    },
-    headerTitle: {
-      fontSize: 16,
-      color: 'rgba(255,255,255,0.8)',
-      marginBottom: 4,
-    },
-    headerAmount: {
-      fontSize: 36,
-      fontWeight: 'bold',
-      color: '#FFFFFF',
-    },
-    headerSubtitle: {
-      fontSize: 14,
-      color: 'rgba(255,255,255,0.7)',
-      marginTop: 8,
+      borderBottomLeftRadius: borderRadius.lg + 8,
+      borderBottomRightRadius: borderRadius.lg + 8,
     },
     content: {
-      padding: 20,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      marginBottom: 16,
+      padding: spacing.xl,
     },
     incomeCard: {
       backgroundColor: currentTheme.card,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 12,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+      marginBottom: spacing.md,
       flexDirection: 'row',
       alignItems: 'center',
       borderWidth: 1,
@@ -202,41 +182,22 @@ export default function IncomeScreen() {
       borderRadius: 24,
       justifyContent: 'center',
       alignItems: 'center',
-      marginRight: 12,
+      marginRight: spacing.md,
     },
     incomeInfo: {
       flex: 1,
     },
-    incomeDescription: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: currentTheme.text,
-    },
-    incomeType: {
-      fontSize: 12,
-      color: currentTheme.textSecondary,
-      marginTop: 2,
-    },
-    incomeAmount: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: currentTheme.success,
-    },
     recurringBadge: {
       backgroundColor: currentTheme.primary + '20',
-      paddingHorizontal: 8,
+      paddingHorizontal: spacing.sm,
       paddingVertical: 2,
-      borderRadius: 8,
-      marginTop: 4,
-    },
-    recurringText: {
-      fontSize: 10,
-      color: currentTheme.primary,
-      fontWeight: '600',
+      borderRadius: borderRadius.sm,
+      marginTop: spacing.xs,
+      alignSelf: 'flex-start',
     },
     fab: {
       position: 'absolute',
-      right: 20,
+      right: spacing.xl,
       bottom: 30,
       backgroundColor: currentTheme.success,
       width: 56,
@@ -244,120 +205,53 @@ export default function IncomeScreen() {
       borderRadius: 28,
       justifyContent: 'center',
       alignItems: 'center',
-      elevation: 8,
+      ...shadows.lg,
       shadowColor: currentTheme.success,
-      shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.4,
-      shadowRadius: 8,
     },
     emptyState: {
       alignItems: 'center',
       paddingVertical: 40,
     },
-    emptyText: {
-      color: currentTheme.textSecondary,
-      marginTop: 12,
-      fontSize: 16,
-    },
-    emptySubtext: {
-      color: currentTheme.textSecondary,
-      marginTop: 4,
-      fontSize: 14,
-      textAlign: 'center',
-    },
-    modalContainer: {
-      flex: 1,
-      justifyContent: 'flex-end',
-      backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    modalContent: {
-      backgroundColor: currentTheme.card,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      padding: 20,
-      maxHeight: '90%',
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      marginBottom: 20,
-      textAlign: 'center',
-    },
-    label: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-      marginBottom: 8,
-      marginTop: 16,
-    },
-    input: {
-      backgroundColor: currentTheme.background,
-      borderRadius: 12,
-      padding: 16,
-      fontSize: 16,
-      color: currentTheme.text,
-      borderWidth: 1,
-      borderColor: currentTheme.border,
-    },
     typeContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
+      gap: spacing.sm,
     },
     typeButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.full,
       borderWidth: 1,
       borderColor: currentTheme.border,
       backgroundColor: currentTheme.background,
-      gap: 6,
+      gap: spacing.sm,
     },
     typeButtonSelected: {
       borderWidth: 2,
-    },
-    typeText: {
-      fontSize: 14,
-      color: currentTheme.text,
     },
     switchRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: 12,
-    },
-    saveButton: {
-      backgroundColor: currentTheme.success,
-      padding: 16,
-      borderRadius: 12,
-      alignItems: 'center',
-      marginTop: 24,
-    },
-    saveButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    cancelButton: {
-      padding: 16,
-      alignItems: 'center',
-    },
-    cancelButtonText: {
-      color: currentTheme.textSecondary,
-      fontSize: 16,
+      paddingVertical: spacing.md,
     },
   });
 
   return (
     <View style={styles.container}>
-      {/* Header con total */}
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Ingresos del Mes</Text>
-        <Text style={styles.headerAmount}>${formatCurrencyDisplay(monthlyIncome)}</Text>
+        <Text style={[typography.body, { color: 'rgba(255,255,255,0.8)', marginBottom: spacing.xs }]}>
+          Ingresos del Mes
+        </Text>
+        <Text style={[typography.amountLarge, { color: '#FFFFFF' }]}>
+          ${formatCurrencyDisplay(monthlyIncome)}
+        </Text>
         {balance.totalIncome > 0 && (
-          <Text style={styles.headerSubtitle}>
+          <Text style={[typography.body, { color: 'rgba(255,255,255,0.7)', marginTop: spacing.sm }]}>
             Balance disponible: ${formatCurrencyDisplay(balance.balance)}
           </Text>
         )}
@@ -377,7 +271,9 @@ export default function IncomeScreen() {
         {/* Ingresos Recurrentes */}
         {incomes.filter(i => i.isRecurring).length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Ingresos Recurrentes</Text>
+            <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.lg }]}>
+              Ingresos Recurrentes
+            </Text>
             {incomes
               .filter(i => i.isRecurring)
               .map((income) => (
@@ -395,15 +291,17 @@ export default function IncomeScreen() {
                     />
                   </View>
                   <View style={styles.incomeInfo}>
-                    <Text style={styles.incomeDescription}>{income.description}</Text>
-                    <Text style={styles.incomeType}>{INCOME_TYPE_LABELS[income.type]}</Text>
+                    <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{income.description}</Text>
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
+                      {INCOME_TYPE_LABELS[income.type]}
+                    </Text>
                     <View style={styles.recurringBadge}>
-                      <Text style={styles.recurringText}>
+                      <Text style={[typography.small, { color: currentTheme.primary, fontWeight: '600' }]}>
                         Día {income.recurringDay} de cada mes
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.incomeAmount}>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.success }]}>
                     +${formatCurrencyDisplay(income.amount)}
                   </Text>
                 </TouchableOpacity>
@@ -414,7 +312,9 @@ export default function IncomeScreen() {
         {/* Ingresos Únicos */}
         {incomes.filter(i => !i.isRecurring).length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Ingresos Únicos</Text>
+            <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xxl, marginBottom: spacing.lg }]}>
+              Ingresos Únicos
+            </Text>
             {incomes
               .filter(i => !i.isRecurring)
               .map((income) => (
@@ -432,12 +332,12 @@ export default function IncomeScreen() {
                     />
                   </View>
                   <View style={styles.incomeInfo}>
-                    <Text style={styles.incomeDescription}>{income.description}</Text>
-                    <Text style={styles.incomeType}>
+                    <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{income.description}</Text>
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
                       {INCOME_TYPE_LABELS[income.type]} • {format(new Date(income.date), 'd MMM', { locale: es })}
                     </Text>
                   </View>
-                  <Text style={styles.incomeAmount}>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.success }]}>
                     +${formatCurrencyDisplay(income.amount)}
                   </Text>
                 </TouchableOpacity>
@@ -449,8 +349,10 @@ export default function IncomeScreen() {
         {incomes.length === 0 && !isLoadingIncomes && (
           <View style={styles.emptyState}>
             <Ionicons name="wallet-outline" size={64} color={currentTheme.textSecondary} />
-            <Text style={styles.emptyText}>No tienes ingresos registrados</Text>
-            <Text style={styles.emptySubtext}>
+            <Text style={[typography.body, { color: currentTheme.textSecondary, marginTop: spacing.md }]}>
+              No tienes ingresos registrados
+            </Text>
+            <Text style={[typography.body, { color: currentTheme.textSecondary, marginTop: spacing.xs, textAlign: 'center' }]}>
               Agrega tu sueldo o ingresos recurrentes{'\n'}para calcular tu balance real
             </Text>
           </View>
@@ -464,16 +366,16 @@ export default function IncomeScreen() {
 
       {/* Modal */}
       <Modal visible={showModal} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+        <View style={common.modalOverlay}>
+          <View style={common.modalContent}>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalTitle}>
+              <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.xl, textAlign: 'center' }]}>
                 {editingIncome ? 'Editar Ingreso' : 'Nuevo Ingreso'}
               </Text>
 
-              <Text style={styles.label}>Monto</Text>
+              <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>Monto</Text>
               <TextInput
-                style={styles.input}
+                style={common.input}
                 placeholder="0,00"
                 placeholderTextColor={currentTheme.textSecondary}
                 keyboardType="numeric"
@@ -481,16 +383,16 @@ export default function IncomeScreen() {
                 onChangeText={(text) => setAmount(formatCurrencyInput(text))}
               />
 
-              <Text style={styles.label}>Descripción</Text>
+              <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm, marginTop: spacing.lg }]}>Descripción</Text>
               <TextInput
-                style={styles.input}
+                style={common.input}
                 placeholder="Ej: Sueldo mensual"
                 placeholderTextColor={currentTheme.textSecondary}
                 value={description}
                 onChangeText={setDescription}
               />
 
-              <Text style={styles.label}>Tipo</Text>
+              <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm, marginTop: spacing.lg }]}>Tipo</Text>
               <View style={styles.typeContainer}>
                 {(Object.keys(INCOME_TYPE_LABELS) as IncomeType[]).map((type) => (
                   <TouchableOpacity
@@ -509,7 +411,7 @@ export default function IncomeScreen() {
                       size={16}
                       color={selectedType === type ? INCOME_TYPE_COLORS[type] : currentTheme.textSecondary}
                     />
-                    <Text style={[styles.typeText, selectedType === type && { color: INCOME_TYPE_COLORS[type] }]}>
+                    <Text style={[typography.body, { color: selectedType === type ? INCOME_TYPE_COLORS[type] : currentTheme.text }]}>
                       {INCOME_TYPE_LABELS[type]}
                     </Text>
                   </TouchableOpacity>
@@ -518,8 +420,8 @@ export default function IncomeScreen() {
 
               <View style={styles.switchRow}>
                 <View>
-                  <Text style={{ color: currentTheme.text, fontSize: 16 }}>Ingreso Recurrente</Text>
-                  <Text style={{ color: currentTheme.textSecondary, fontSize: 12 }}>
+                  <Text style={[typography.body, { color: currentTheme.text }]}>Ingreso Recurrente</Text>
+                  <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
                     Se repite todos los meses
                   </Text>
                 </View>
@@ -548,9 +450,11 @@ export default function IncomeScreen() {
 
               {isRecurring && (
                 <>
-                  <Text style={styles.label}>Día del mes que se cobra</Text>
+                  <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
+                    Día del mes que se cobra
+                  </Text>
                   <TextInput
-                    style={styles.input}
+                    style={common.input}
                     placeholder="1-31"
                     placeholderTextColor={currentTheme.textSecondary}
                     keyboardType="numeric"
@@ -562,12 +466,9 @@ export default function IncomeScreen() {
 
               {!isRecurring && (
                 <>
-                  <Text style={styles.label}>Fecha</Text>
-                  <TouchableOpacity
-                    style={styles.input}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Text style={{ color: currentTheme.text, fontSize: 16 }}>
+                  <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm, marginTop: spacing.lg }]}>Fecha</Text>
+                  <TouchableOpacity style={common.input} onPress={() => setShowDatePicker(true)}>
+                    <Text style={[typography.body, { color: currentTheme.text }]}>
                       {format(date, 'dd/MM/yyyy', { locale: es })}
                     </Text>
                   </TouchableOpacity>
@@ -582,20 +483,23 @@ export default function IncomeScreen() {
                 </>
               )}
 
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>
+              <TouchableOpacity
+                style={[common.buttonPrimary, { backgroundColor: currentTheme.success, marginTop: spacing.xxl }]}
+                onPress={handleSave}
+              >
+                <Text style={common.buttonPrimaryText}>
                   {editingIncome ? 'Actualizar' : 'Guardar'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={{ padding: spacing.lg, alignItems: 'center' }}
                 onPress={() => {
                   setShowModal(false);
                   resetForm();
                 }}
               >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                <Text style={[typography.body, { color: currentTheme.textSecondary }]}>Cancelar</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>

@@ -53,6 +53,19 @@
       "eas": {
         "projectId": "4cbdcc03-00f3-474d-a6d5-1bc6b15b1a39"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-quick-actions",
+        {
+          "androidIcons": {
+            "add_icon": {
+              "foregroundImage": "./assets/adaptive-icon.png",
+              "backgroundColor": "#6366F1"
+            }
+          }
+        }
+      ]
+    ]
   }
 }

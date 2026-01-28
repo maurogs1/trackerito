@@ -27,7 +27,7 @@ const COLORS = ['#FF5722', '#9C27B0', '#2196F3', '#F44336', '#607D8B', '#4CAF50'
 export default function AddExpenseScreen() {
   const navigation = useNavigation<AddExpenseScreenNavigationProp>();
   const route = useRoute<AddExpenseScreenRouteProp>();
-  const { addExpense, addExpenseWithInstallments, updateExpense, expenses, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories, creditCards, banks, addCreditCardPurchase, paymentGroups, loadPaymentGroups, addPaymentGroup } = useStore();
+  const { addExpense, addExpenseWithInstallments, updateExpense, expenses, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories, paymentGroups, loadPaymentGroups, addPaymentGroup } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const { showSuccess } = useToast();
@@ -47,12 +47,7 @@ export default function AddExpenseScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Payment Method State
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit_card'>('cash');
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [installments, setInstallments] = useState('1');
-  const [isExistingPurchase, setIsExistingPurchase] = useState(false);
-  const [currentInstallment, setCurrentInstallment] = useState('1');
-  const [cardModalVisible, setCardModalVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
 
   // Installments State (independiente de tarjeta)
@@ -233,64 +228,8 @@ export default function AddExpenseScreen() {
       showSuccess('Gasto actualizado correctamente');
       navigation.goBack();
     } else {
-      // Si viene desde "Pagos" para pagar el resumen de tarjeta (legacy - ya no se usa)
-      if (route.params?.isCreditCardPayment && route.params?.creditCardId) {
-        // Crear el gasto del pago del resumen
-        await addExpense({
-          amount: numAmount,
-          description,
-          categoryIds: selectedCategoryIds,
-          date: date.toISOString(),
-          financialType: financialType,
-          creditCardId: route.params.creditCardId,
-          isCreditCardPayment: true
-        });
-        showSuccess('Pago del resumen registrado correctamente');
-        navigation.goBack();
-      }
-      // Si el usuario seleccionó tarjeta de crédito con cuotas
-      else if (paymentMethod === 'credit_card' && selectedCardId) {
-        const numInstallments = parseInt(installments) || 1;
-
-        // Calcular la fecha de la primera cuota
-        let firstInstallmentDate = new Date(date);
-        if (isExistingPurchase && parseInt(currentInstallment) > 1) {
-          // Si está registrando una compra pasada, calcular la fecha de la primera cuota
-          const currentInst = parseInt(currentInstallment) || 1;
-          firstInstallmentDate.setMonth(firstInstallmentDate.getMonth() - (currentInst - 1));
-        }
-
-        // Usar el nuevo sistema unificado
-        if (numInstallments > 1) {
-          // Compra en cuotas → usar addExpenseWithInstallments
-          await addExpenseWithInstallments({
-            amount: numAmount,
-            description,
-            categoryIds: selectedCategoryIds,
-            date: firstInstallmentDate.toISOString(),
-            financialType: financialType,
-            paymentMethod: 'credit_card',
-            creditCardId: selectedCardId,
-            installments: numInstallments,
-          });
-          showSuccess(`Compra en ${numInstallments} cuotas registrada`);
-        } else {
-          // Compra en 1 pago → gasto normal
-          await addExpense({
-            amount: numAmount,
-            description,
-            categoryIds: selectedCategoryIds,
-            date: firstInstallmentDate.toISOString(),
-            financialType: financialType,
-            paymentMethod: 'credit_card',
-            creditCardId: selectedCardId,
-          });
-          showSuccess('Gasto registrado');
-        }
-        navigation.goBack();
-      }
-      // Gasto en cuotas SIN tarjeta de crédito (ej: deuda a un amigo)
-      else if (hasInstallments && parseInt(installments) > 1) {
+      // Gasto en cuotas
+      if (hasInstallments && parseInt(installments) > 1) {
         const numInstallments = parseInt(installments);
         const startingInst = parseInt(startingInstallment) || 1;
 
@@ -314,7 +253,7 @@ export default function AddExpenseScreen() {
         showSuccess(`Gasto en ${numInstallments} cuotas registrado (pagando cuota ${startingInst})`);
         navigation.goBack();
       }
-      // Gasto normal (efectivo/débito)
+      // Gasto normal
       else {
         await addExpense({
           amount: numAmount,
@@ -579,7 +518,6 @@ export default function AddExpenseScreen() {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container}>
-        {currentStep === 1 ? (
             <>
                 <Text style={styles.label}>Monto</Text>
                 <View style={[styles.inputContainer, isAmountFocused && styles.inputFocused]}>
@@ -1171,18 +1109,8 @@ export default function AddExpenseScreen() {
                 )}
 
                 <View style={{ flexDirection: 'row', gap: 12, marginTop: 40, marginBottom: 40 }}>
-                    {creditCards.length > 0 && (
-                      <TouchableOpacity
-                          style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0, backgroundColor: 'transparent', borderWidth: 1, borderColor: currentTheme.border }]}
-                          onPress={() => setCurrentStep(2)}
-                      >
-                          <Text style={[styles.saveButtonText, { color: currentTheme.text, fontSize: 14 }]}>
-                            <Ionicons name="card-outline" size={16} /> Tarjeta
-                          </Text>
-                      </TouchableOpacity>
-                    )}
                     <TouchableOpacity
-                        style={[styles.saveButton, { flex: 2, marginTop: 0, marginBottom: 0 }]}
+                        style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0 }]}
                         onPress={handleSave}
                     >
                         <Text style={styles.saveButtonText}>
@@ -1191,176 +1119,6 @@ export default function AddExpenseScreen() {
                     </TouchableOpacity>
                 </View>
             </>
-        ) : (
-            <>
-                {/* Header del paso 2 */}
-                <View style={{
-                  backgroundColor: currentTheme.primary + '10',
-                  padding: 16,
-                  borderRadius: 12,
-                  marginBottom: 20,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 12,
-                }}>
-                  <Ionicons name="card" size={24} color={currentTheme.primary} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: currentTheme.text, fontSize: 16, fontWeight: 'bold' }}>
-                      Vincular a Tarjeta de Crédito
-                    </Text>
-                    <Text style={{ color: currentTheme.textSecondary, fontSize: 12 }}>
-                      Opcional: para trackear consumos de tarjeta
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Resumen del gasto */}
-                <View style={{
-                  backgroundColor: currentTheme.card,
-                  padding: 16,
-                  borderRadius: 12,
-                  marginBottom: 20,
-                  borderWidth: 1,
-                  borderColor: currentTheme.border,
-                }}>
-                  <Text style={{ color: currentTheme.textSecondary, fontSize: 12 }}>Gasto a registrar:</Text>
-                  <Text style={{ color: currentTheme.text, fontSize: 20, fontWeight: 'bold' }}>
-                    ${amount} - {description || 'Sin descripción'}
-                  </Text>
-                  {hasInstallments && parseInt(installments) > 1 && (
-                    <Text style={{ color: currentTheme.primary, fontSize: 14, marginTop: 4 }}>
-                      En {installments} cuotas de ${((parseCurrencyInput(amount) || 0) / parseInt(installments)).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </Text>
-                  )}
-                </View>
-
-                <Text style={styles.label}>Seleccionar Tarjeta</Text>
-                <TouchableOpacity
-                    style={{
-                        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                        padding: 16, borderRadius: 12, borderWidth: 1,
-                        borderColor: selectedCardId ? currentTheme.primary : currentTheme.border,
-                        backgroundColor: currentTheme.card, marginBottom: 16
-                    }}
-                    onPress={() => setCardModalVisible(true)}
-                >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <Ionicons
-                        name="card-outline"
-                        size={24}
-                        color={selectedCardId ? currentTheme.primary : currentTheme.textSecondary}
-                      />
-                      <Text style={{ color: selectedCardId ? currentTheme.text : currentTheme.textSecondary, fontSize: 16 }}>
-                          {selectedCardId
-                              ? (() => {
-                                  const card = creditCards.find(c => c.id === selectedCardId);
-                                  const bank = banks.find(b => b.id === card?.bank_id);
-                                  return card ? `${bank?.name || 'Banco'} - ${card.name}` : 'Seleccionar Tarjeta';
-                              })()
-                              : 'Ninguna (pago directo)'
-                          }
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-down" size={20} color={currentTheme.textSecondary} />
-                </TouchableOpacity>
-
-                {selectedCardId && (
-                  <>
-                    <View style={{
-                        backgroundColor: currentTheme.primary + '15',
-                        padding: 12,
-                        borderRadius: 8,
-                        marginBottom: 16,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 8
-                    }}>
-                        <Ionicons name="information-circle" size={20} color={currentTheme.primary} />
-                        <Text style={{ color: currentTheme.text, fontSize: 13, flex: 1 }}>
-                            Este consumo aparecerá en el resumen mensual de la tarjeta.
-                        </Text>
-                    </View>
-
-                    {!hasInstallments && (
-                      <View style={{ marginBottom: 16 }}>
-                        <Text style={{ color: currentTheme.textSecondary, marginBottom: 8 }}>Cuotas (opcional)</Text>
-                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                          {['1', '3', '6', '12'].map((num) => (
-                            <TouchableOpacity
-                              key={num}
-                              style={{
-                                paddingHorizontal: 20,
-                                paddingVertical: 12,
-                                borderRadius: 8,
-                                backgroundColor: installments === num ? currentTheme.primary : currentTheme.surface,
-                                borderWidth: 1,
-                                borderColor: installments === num ? currentTheme.primary : currentTheme.border,
-                              }}
-                              onPress={() => setInstallments(num)}
-                            >
-                              <Text style={{
-                                color: installments === num ? '#FFFFFF' : currentTheme.text,
-                                fontWeight: installments === num ? 'bold' : 'normal',
-                              }}>
-                                {num === '1' ? '1 pago' : `${num} cuotas`}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    )}
-
-                    <TouchableOpacity
-                        style={{ marginBottom: 16 }}
-                        onPress={() => setIsExistingPurchase(!isExistingPurchase)}
-                    >
-                        <Text style={{ color: currentTheme.primary, fontSize: 14 }}>
-                            {isExistingPurchase ? '▲ Ocultar opciones avanzadas' : '▼ Registrar compra de meses pasados'}
-                        </Text>
-                    </TouchableOpacity>
-
-                    {isExistingPurchase && (
-                        <View style={{ marginBottom: 16, padding: 16, backgroundColor: currentTheme.surface, borderRadius: 8 }}>
-                            <Text style={{ color: currentTheme.textSecondary, marginBottom: 8 }}>Cuota que pagas este mes</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={currentInstallment}
-                                onChangeText={setCurrentInstallment}
-                                keyboardType="numeric"
-                                placeholder="Ej: 6 (si es la cuota 6 de 12)"
-                                placeholderTextColor={currentTheme.textSecondary}
-                            />
-                        </View>
-                    )}
-                  </>
-                )}
-
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 40, marginBottom: 40 }}>
-                    <TouchableOpacity
-                        style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0, backgroundColor: 'transparent', borderWidth: 1, borderColor: currentTheme.border }]}
-                        onPress={() => {
-                          setCurrentStep(1);
-                          setPaymentMethod('cash');
-                        }}
-                    >
-                        <Text style={[styles.saveButtonText, { color: currentTheme.text }]}>Atrás</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.saveButton, { flex: 2, marginTop: 0, marginBottom: 0 }]}
-                        onPress={() => {
-                          if (selectedCardId) {
-                            setPaymentMethod('credit_card');
-                          }
-                          handleSave();
-                        }}
-                    >
-                        <Text style={styles.saveButtonText}>
-                          {selectedCardId ? 'Registrar en Tarjeta' : 'Guardar sin Tarjeta'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </>
-        )}
       </ScrollView>
 
       {/* Quick Add Category Modal */}
@@ -1425,56 +1183,6 @@ export default function AddExpenseScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-      {/* Card Selection Modal */}
-      <Modal visible={cardModalVisible} transparent animationType="fade">
-        <TouchableWithoutFeedback onPress={() => setCardModalVisible(false)}>
-            <View style={styles.modalContainer}>
-                <TouchableWithoutFeedback onPress={() => { }}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Seleccionar Tarjeta</Text>
-                        <ScrollView style={{ maxHeight: 300 }}>
-                            {creditCards.map(card => {
-                                const bank = banks.find(b => b.id === card.bank_id);
-                                return (
-                                    <TouchableOpacity
-                                        key={card.id}
-                                        style={{
-                                            padding: 16,
-                                            borderBottomWidth: 1,
-                                            borderBottomColor: currentTheme.border,
-                                            flexDirection: 'row',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between'
-                                        }}
-                                        onPress={() => {
-                                            setSelectedCardId(card.id);
-                                            setCardModalVisible(false);
-                                        }}
-                                    >
-                                        <View>
-                                            <Text style={{ color: currentTheme.text, fontSize: 16, fontWeight: 'bold' }}>
-                                                {bank?.name || 'Banco'} - {card.name}
-                                            </Text>
-                                        </View>
-                                        {selectedCardId === card.id && (
-                                            <Ionicons name="checkmark" size={20} color={currentTheme.primary} />
-                                        )}
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-                        <TouchableOpacity
-                            style={{ marginTop: 16, padding: 12, alignItems: 'center' }}
-                            onPress={() => setCardModalVisible(false)}
-                        >
-                            <Text style={{ color: currentTheme.primary, fontSize: 16, fontWeight: 'bold' }}>Cancelar</Text>
-                        </TouchableOpacity>
-                    </View>
-                </TouchableWithoutFeedback>
-            </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
       {/* Quick Add Payment Group Modal */}
       <Modal visible={groupModalVisible} transparent animationType="fade">
         <TouchableWithoutFeedback onPress={() => setGroupModalVisible(false)}>

@@ -6,14 +6,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAuthSlice, AuthSlice } from './slices/authSlice';
 import { createPreferencesSlice, PreferencesSlice } from './slices/preferencesSlice';
 import { createExpensesSlice, ExpensesSlice } from './slices/expensesSlice';
-import { createGoalsSlice, GoalsSlice } from './slices/goalsSlice';
 import { createCategoriesSlice, CategoriesSlice } from './slices/categoriesSlice';
-import { createBudgetsSlice, BudgetsSlice } from './slices/budgetsSlice';
 import { createBenefitsSlice, BenefitsSlice } from './slices/benefitsSlice';
-import { createInvestmentsSlice, InvestmentsSlice } from './slices/investmentsSlice';
 import { createDebtsSlice, DebtsSlice } from './slices/debtsSlice';
 import { createBanksSlice, BanksSlice } from './slices/banksSlice';
-import { createCreditCardsSlice, CreditCardsSlice } from './slices/creditCardsSlice';
 import { createRecurringServicesSlice, RecurringServicesSlice } from './slices/recurringServicesSlice';
 import { createIncomeSlice, IncomeSlice } from './slices/incomeSlice';
 import { createPaymentGroupsSlice, PaymentGroupsSlice } from './slices/paymentGroupsSlice';
@@ -22,14 +18,10 @@ import { createPaymentGroupsSlice, PaymentGroupsSlice } from './slices/paymentGr
 export type StoreState = AuthSlice &
   PreferencesSlice &
   ExpensesSlice &
-  GoalsSlice &
   CategoriesSlice &
-  BudgetsSlice &
   BenefitsSlice &
-  InvestmentsSlice &
   DebtsSlice &
   BanksSlice &
-  CreditCardsSlice &
   RecurringServicesSlice &
   IncomeSlice &
   PaymentGroupsSlice;
@@ -41,14 +33,10 @@ export const useStore = create<StoreState>()(
       ...createAuthSlice(...a),
       ...createPreferencesSlice(...a),
       ...createExpensesSlice(...a),
-      ...createGoalsSlice(...a),
       ...createCategoriesSlice(...a),
-      ...createBudgetsSlice(...a),
       ...createBenefitsSlice(...a),
-      ...createInvestmentsSlice(...a),
       ...createDebtsSlice(...a),
       ...createBanksSlice(...a),
-      ...createCreditCardsSlice(...a),
       ...createRecurringServicesSlice(...a),
       ...createIncomeSlice(...a),
       ...createPaymentGroupsSlice(...a),
@@ -61,14 +49,9 @@ export const useStore = create<StoreState>()(
         isAuthenticated: state.isAuthenticated,
         expenses: state.expenses,
         categories: state.categories,
-        goals: state.goals,
-        budgets: state.budgets,
         userBanks: state.userBanks,
-        investments: state.investments,
         debts: state.debts,
         banks: state.banks,
-        creditCards: state.creditCards,
-        creditCardPurchases: state.creditCardPurchases,
         recurringServices: state.recurringServices,
         servicePayments: state.servicePayments,
         incomes: state.incomes,

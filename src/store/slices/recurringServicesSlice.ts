@@ -14,6 +14,7 @@ export interface RecurringServicesSlice {
   updateRecurringService: (id: string, updates: Partial<RecurringService>) => Promise<void>;
   deleteRecurringService: (id: string) => Promise<void>;
   markServiceAsPaid: (serviceId: string, month: number, year: number, amount: number, expenseId?: string) => Promise<void>;
+  unmarkServicePayment: (serviceId: string, month: number, year: number, deleteExpense?: boolean) => Promise<void>;
   getServicePaymentStatus: (serviceId: string, month: number, year: number) => ServicePayment | null;
   getMonthlyServicesTotal: (month: number, year: number) => number;
 }
@@ -279,6 +280,60 @@ export const createRecurringServicesSlice: StateCreator<RecurringServicesSlice> 
       await get().loadServicePayments();
     } catch (error) {
       logError(error, 'markServiceAsPaid');
+      throw error;
+    }
+  },
+
+  unmarkServicePayment: async (serviceId, month, year, deleteExpense = true) => {
+    try {
+      const { supabase } = await import('../../services/supabase');
+
+      // Buscar el pago existente para obtener el expense_id
+      const payment = get().getServicePaymentStatus(serviceId, month, year);
+
+      if (!payment) {
+        return; // No hay pago que deshacer
+      }
+
+      // Si hay un gasto asociado y queremos eliminarlo
+      if (deleteExpense && payment.expense_id) {
+        const { error: expenseError } = await supabase
+          .from('expenses')
+          .delete()
+          .eq('id', payment.expense_id);
+
+        if (expenseError) {
+          logError(expenseError, 'unmarkServicePayment - delete expense');
+          // Continuar aunque falle eliminar el gasto
+        }
+      }
+
+      // Eliminar el registro de pago
+      const { error } = await supabase
+        .from('service_payments')
+        .delete()
+        .eq('service_id', serviceId)
+        .eq('month', month)
+        .eq('year', year);
+
+      if (error) throw error;
+
+      // Actualizar estado local
+      set((state) => ({
+        servicePayments: state.servicePayments.filter(
+          p => !(p.service_id === serviceId && p.month === month && p.year === year)
+        )
+      }));
+
+      // Recargar gastos si se eliminó uno
+      if (deleteExpense && payment.expense_id) {
+        const state = get() as any;
+        if (state.loadExpenses) {
+          await state.loadExpenses();
+        }
+      }
+    } catch (error) {
+      logError(error, 'unmarkServicePayment');
       throw error;
     }
   },

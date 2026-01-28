@@ -16,9 +16,7 @@ export interface ExpensesSlice {
   addExpenseWithInstallments: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<void>;
   updateExpense: (id: string, expense: Partial<Omit<Expense, 'id' | 'createdAt'>>) => Promise<void>;
   removeExpense: (id: string) => Promise<void>;
-  payCreditCardStatement: (cardId: string, month: number, year: number, paymentAmount?: number) => Promise<void>;
   getExpenseInstallments: (parentExpenseId: string) => Expense[];
-  getCreditCardMonthlyExpenses: (cardId: string, month: number, year: number) => Expense[];
   getCurrentExpenses: () => Expense[];
   getUpcomingExpenses: () => Expense[];
   getSummary: () => ExpenseSummary;
@@ -655,122 +653,6 @@ export const createExpensesSlice: StateCreator<
     return expenses
       .filter((e) => e.parentExpenseId === parentExpenseId)
       .sort((a, b) => (a.installmentNumber || 0) - (b.installmentNumber || 0));
-  },
-
-  getCreditCardMonthlyExpenses: (cardId: string, month: number, year: number) => {
-    const { expenses } = get();
-    return expenses.filter((e) => {
-      if (e.creditCardId !== cardId || e.paymentMethod !== 'credit_card') {
-        return false;
-      }
-
-      // Solo mostrar cuotas hijas, no el gasto padre
-      if (e.isParent) {
-        return false;
-      }
-
-      const expenseDate = new Date(e.date);
-      return (
-        expenseDate.getMonth() === month && expenseDate.getFullYear() === year
-      );
-    });
-  },
-
-  payCreditCardStatement: async (cardId: string, month: number, year: number, paymentAmount?: number) => {
-    set({ isLoading: true, error: null } as any);
-    try {
-      const { supabase } = await import('../../services/supabase');
-      const user = (get() as any).user;
-
-      if (!user || !user.id) {
-        const errorMsg = getUserFriendlyMessage(new Error('No user authenticated'), 'expense');
-        logError(new Error('No user authenticated'), 'payCreditCardStatement');
-        set({ error: errorMsg, isLoading: false } as any);
-        throw new Error(errorMsg);
-      }
-
-      // 1. Obtener todas las cuotas del mes
-      const monthlyExpenses = get().getCreditCardMonthlyExpenses(cardId, month, year);
-
-      if (monthlyExpenses.length === 0) {
-        set({ isLoading: false } as any);
-        return;
-      }
-
-      // 2. Calcular el total a pagar
-      const totalAmount = paymentAmount || monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-      // 3. Actualizar todas las cuotas a 'paid'
-      const expenseIds = monthlyExpenses.map((e) => e.id);
-
-      const { error: updateError } = await supabase
-        .from('expenses')
-        .update({ payment_status: 'paid' })
-        .in('id', expenseIds);
-
-      if (updateError) {
-        logError(updateError, 'payCreditCardStatement-update');
-        throw updateError;
-      }
-
-      // 4. Crear el gasto del pago del resumen
-      const creditCard = (get() as any).creditCards?.find((c: any) => c.id === cardId);
-      const cardName = creditCard?.name || 'Tarjeta';
-
-      const paymentExpenseData = {
-        amount: totalAmount,
-        description: `Pago Resumen ${cardName} ${month + 1}/${year}`,
-        date: new Date().toISOString(),
-        financial_type: 'needs',
-        user_id: user.id,
-        payment_method: 'cash', // El pago del resumen se hace en efectivo/débito
-        payment_status: 'paid',
-        is_credit_card_payment: true,
-        credit_card_id: cardId,
-      };
-
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('expenses')
-        .insert([paymentExpenseData])
-        .select();
-
-      if (paymentError) {
-        logError(paymentError, 'payCreditCardStatement-payment');
-        throw paymentError;
-      }
-
-      // 5. Actualizar estado local
-      set((state) => {
-        const updatedExpenses = state.expenses.map((e) =>
-          expenseIds.includes(e.id)
-            ? { ...e, paymentStatus: 'paid' as const }
-            : e
-        );
-
-        const paymentExpense: Expense = {
-          id: paymentData[0].id,
-          amount: Number(paymentData[0].amount),
-          categoryIds: [],
-          description: paymentData[0].description,
-          date: paymentData[0].date,
-          createdAt: paymentData[0].created_at,
-          financialType: paymentData[0].financial_type,
-          paymentMethod: paymentData[0].payment_method,
-          paymentStatus: paymentData[0].payment_status,
-          isCreditCardPayment: paymentData[0].is_credit_card_payment,
-          creditCardId: paymentData[0].credit_card_id,
-        };
-
-        return {
-          expenses: sortExpensesByDate([paymentExpense, ...updatedExpenses]),
-          isLoading: false,
-        } as any;
-      });
-    } catch (error) {
-      logError(error, 'payCreditCardStatement');
-      const errorMessage = getUserFriendlyMessage(error, 'expense');
-      set({ error: errorMessage, isLoading: false } as any);
-    }
   },
 
   getCurrentExpenses: () => {

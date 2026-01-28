@@ -43,6 +43,11 @@ export default function RecurringServicesScreen() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('pricetag');
   const [newCategoryColor, setNewCategoryColor] = useState('#607D8B');
+
+  // Buscador de categorías
+  const [categorySearch, setCategorySearch] = useState('');
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const INITIAL_CATEGORY_COUNT = 6;
   
   const ICONS = [
     'cart', 'game-controller', 'car', 'medical', 'pricetag', 'restaurant', 'cafe', 'fitness',
@@ -152,6 +157,8 @@ export default function RecurringServicesScreen() {
     setSelectedCategoryId(undefined);
     setSelectedPredefinedService(null);
     setEditingService(null);
+    setCategorySearch('');
+    setShowAllCategories(false);
   };
 
   const handleEditService = (service: RecurringService) => {
@@ -576,40 +583,109 @@ export default function RecurringServicesScreen() {
             )}
 
             <Text style={styles.inputLabel}>Categoría (Opcional)</Text>
+
+            {/* Buscador de categorías */}
+            {categories.length > INITIAL_CATEGORY_COUNT && (
+              <View style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: currentTheme.surface, borderRadius: 12, borderWidth: 1, borderColor: currentTheme.border, paddingHorizontal: 12 }}>
+                <Ionicons
+                  name="search"
+                  size={18}
+                  color={currentTheme.textSecondary}
+                />
+                <TextInput
+                  style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 8, color: currentTheme.text, fontSize: 14 }}
+                  placeholder="Buscar categoría..."
+                  placeholderTextColor={currentTheme.textSecondary}
+                  value={categorySearch}
+                  onChangeText={(text) => {
+                    setCategorySearch(text);
+                    if (text) setShowAllCategories(true);
+                  }}
+                />
+                {categorySearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setCategorySearch('')}>
+                    <Ionicons name="close-circle" size={18} color={currentTheme.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
             <View style={styles.categorySelector}>
-              {categories.map(cat => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.categoryChip,
-                    selectedCategoryId === cat.id && styles.categoryChipSelected
-                  ]}
-                  onPress={() => setSelectedCategoryId(
-                    selectedCategoryId === cat.id ? undefined : cat.id
-                  )}
-                >
-                  <Ionicons
-                    name={cat.icon as any}
-                    size={16}
-                    color={selectedCategoryId === cat.id ? '#FFFFFF' : cat.color}
-                  />
-                  <Text style={[
-                    styles.categoryChipText,
-                    selectedCategoryId === cat.id && styles.categoryChipTextSelected
-                  ]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={[styles.categoryChip, { borderStyle: 'dashed', borderColor: currentTheme.primary }]}
-                onPress={() => setShowCategoryModal(true)}
-              >
-                <Ionicons name="add" size={16} color={currentTheme.primary} />
-                <Text style={[styles.categoryChipText, { color: currentTheme.primary }]}>
-                  Nueva
-                </Text>
-              </TouchableOpacity>
+              {(() => {
+                // Filtrar por búsqueda
+                const filteredCategories = categorySearch
+                  ? categories.filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase()))
+                  : categories;
+
+                // Limitar cantidad mostrada
+                const displayedCategories = showAllCategories || categorySearch
+                  ? filteredCategories
+                  : filteredCategories.slice(0, INITIAL_CATEGORY_COUNT);
+
+                return (
+                  <>
+                    {displayedCategories.map(cat => (
+                      <TouchableOpacity
+                        key={cat.id}
+                        style={[
+                          styles.categoryChip,
+                          selectedCategoryId === cat.id && styles.categoryChipSelected
+                        ]}
+                        onPress={() => setSelectedCategoryId(
+                          selectedCategoryId === cat.id ? undefined : cat.id
+                        )}
+                      >
+                        <Ionicons
+                          name={cat.icon as any}
+                          size={16}
+                          color={selectedCategoryId === cat.id ? '#FFFFFF' : cat.color}
+                        />
+                        <Text style={[
+                          styles.categoryChipText,
+                          selectedCategoryId === cat.id && styles.categoryChipTextSelected
+                        ]}>
+                          {cat.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+
+                    {/* Botón ver más/menos */}
+                    {!categorySearch && categories.length > INITIAL_CATEGORY_COUNT && (
+                      <TouchableOpacity
+                        style={[styles.categoryChip, { backgroundColor: currentTheme.surface }]}
+                        onPress={() => setShowAllCategories(!showAllCategories)}
+                      >
+                        <Ionicons
+                          name={showAllCategories ? "chevron-up" : "chevron-down"}
+                          size={16}
+                          color={currentTheme.textSecondary}
+                        />
+                        <Text style={[styles.categoryChipText, { color: currentTheme.textSecondary }]}>
+                          {showAllCategories ? 'Menos' : `+${categories.length - INITIAL_CATEGORY_COUNT}`}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Botón nueva categoría */}
+                    <TouchableOpacity
+                      style={[styles.categoryChip, { borderStyle: 'dashed', borderColor: currentTheme.primary }]}
+                      onPress={() => setShowCategoryModal(true)}
+                    >
+                      <Ionicons name="add" size={16} color={currentTheme.primary} />
+                      <Text style={[styles.categoryChipText, { color: currentTheme.primary }]}>
+                        Nueva
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Mensaje cuando no hay resultados */}
+                    {categorySearch && displayedCategories.length === 0 && (
+                      <Text style={{ color: currentTheme.textSecondary, fontSize: 12, fontStyle: 'italic' }}>
+                        No se encontraron categorías con "{categorySearch}"
+                      </Text>
+                    )}
+                  </>
+                );
+              })()}
             </View>
 
             <View style={styles.modalButtons}>
