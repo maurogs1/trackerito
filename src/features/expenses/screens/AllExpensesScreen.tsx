@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useStore } from '../../../store/useStore';
-import { theme } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay } from '../../../shared/utils/currency';
 import { useToast } from '../../../shared/hooks/useToast';
@@ -40,6 +40,7 @@ export default function AllExpensesScreen() {
   const expenses = getCurrentExpenses();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const common = createCommonStyles(currentTheme);
   const { showSuccess, showError } = useToast();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -75,12 +76,12 @@ export default function AllExpensesScreen() {
   const [categoryFilterSearch, setCategoryFilterSearch] = useState('');
   const [showAllCategoryFilters, setShowAllCategoryFilters] = useState(false);
   const INITIAL_CATEGORY_FILTER_COUNT = 8;
-  
+
   // Custom Date Range State
   const [customDateRange, setCustomDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
-  
+
   // Delete Confirmation Modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
@@ -219,7 +220,7 @@ export default function AllExpensesScreen() {
       }
     }
   };
-  
+
   const handleDelete = async (id: string) => {
     setExpenseToDelete(id);
     setShowDeleteModal(true);
@@ -279,29 +280,31 @@ export default function AllExpensesScreen() {
           <TouchableOpacity onPress={() => setCalendarMonth(subMonths(calendarMonth, 1))}>
             <Ionicons name="chevron-back" size={24} color={currentTheme.text} />
           </TouchableOpacity>
-          <Text style={styles.calendarTitle}>{format(calendarMonth, 'MMMM yyyy', { locale: es })}</Text>
+          <Text style={[typography.sectionTitle, { color: currentTheme.text, textTransform: 'capitalize' }]}>
+            {format(calendarMonth, 'MMMM yyyy', { locale: es })}
+          </Text>
           <TouchableOpacity onPress={() => setCalendarMonth(addMonths(calendarMonth, 1))}>
             <Ionicons name="chevron-forward" size={24} color={currentTheme.text} />
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.weekDaysRow}>
           {weekDays.map((day, index) => (
-            <Text key={index} style={styles.weekDayText}>{day}</Text>
+            <Text key={index} style={[typography.bodyBold, { width: 40, textAlign: 'center', color: currentTheme.textSecondary }]}>{day}</Text>
           ))}
         </View>
 
         <View style={styles.daysGrid}>
           {days.map((day, index) => {
-            const isSelected = (customDateRange.start && isSameDay(day, customDateRange.start)) || 
+            const isSelected = (customDateRange.start && isSameDay(day, customDateRange.start)) ||
                                (customDateRange.end && isSameDay(day, customDateRange.end));
-            const isInRange = customDateRange.start && customDateRange.end && 
+            const isInRange = customDateRange.start && customDateRange.end &&
                               isWithinInterval(day, { start: customDateRange.start, end: customDateRange.end });
             const isCurrentMonth = isSameMonth(day, calendarMonth);
 
             return (
-              <TouchableOpacity 
-                key={index} 
+              <TouchableOpacity
+                key={index}
                 style={[
                   styles.dayCell,
                   isSelected && styles.dayCellSelected,
@@ -311,9 +314,9 @@ export default function AllExpensesScreen() {
                 onPress={() => handleDayPress(day)}
               >
                 <Text style={[
-                  styles.dayText,
-                  isSelected && styles.dayTextSelected,
-                  !isCurrentMonth && styles.dayTextOutside
+                  typography.body,
+                  { color: isSelected ? '#FFFFFF' : isCurrentMonth ? currentTheme.text : currentTheme.textSecondary },
+                  isSelected && { fontWeight: 'bold' }
                 ]}>
                   {format(day, 'd')}
                 </Text>
@@ -323,8 +326,8 @@ export default function AllExpensesScreen() {
         </View>
 
         <View style={styles.calendarFooter}>
-          <TouchableOpacity 
-            style={[styles.calendarButton, styles.cancelButton]} 
+          <TouchableOpacity
+            style={{ padding: spacing.sm }}
             onPress={() => {
               setIsCalendarVisible(false);
               if (!customDateRange.start || !customDateRange.end) {
@@ -332,10 +335,10 @@ export default function AllExpensesScreen() {
               }
             }}
           >
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
+            <Text style={[typography.bodyBold, { color: currentTheme.textSecondary }]}>Cancelar</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.calendarButton, styles.applyButton, (!customDateRange.start || !customDateRange.end) && { opacity: 0.5 }]} 
+          <TouchableOpacity
+            style={[styles.applyButton, (!customDateRange.start || !customDateRange.end) && { opacity: 0.5 }]}
             onPress={() => {
               if (customDateRange.start && customDateRange.end) {
                 setIsCalendarVisible(false);
@@ -343,7 +346,7 @@ export default function AllExpensesScreen() {
             }}
             disabled={!customDateRange.start || !customDateRange.end}
           >
-            <Text style={styles.applyButtonText}>Aplicar</Text>
+            <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Aplicar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -356,16 +359,16 @@ export default function AllExpensesScreen() {
       backgroundColor: currentTheme.background,
     },
     header: {
-      padding: 16,
+      padding: spacing.lg,
       backgroundColor: currentTheme.card,
       borderBottomWidth: 1,
       borderBottomColor: currentTheme.border,
-      paddingBottom: 12,
+      paddingBottom: spacing.md,
     },
     filterButtonRow: {
       flexDirection: 'row',
-      gap: 8,
-      marginTop: 4,
+      gap: spacing.sm,
+      marginTop: spacing.xs,
     },
     filterButton: {
       flex: 1,
@@ -373,24 +376,16 @@ export default function AllExpensesScreen() {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: currentTheme.background,
-      paddingVertical: 10,
-      paddingHorizontal: 16,
-      borderRadius: 12,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderRadius: borderRadius.md,
       borderWidth: 1,
       borderColor: currentTheme.border,
-      gap: 8,
+      gap: spacing.sm,
     },
     filterButtonActive: {
       backgroundColor: currentTheme.primary,
       borderColor: currentTheme.primary,
-    },
-    filterButtonText: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: currentTheme.text,
-    },
-    filterButtonTextActive: {
-      color: '#FFFFFF',
     },
     filterBadge: {
       backgroundColor: '#FFFFFF',
@@ -400,85 +395,52 @@ export default function AllExpensesScreen() {
       justifyContent: 'center',
       alignItems: 'center',
     },
-    filterBadgeText: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: currentTheme.primary,
-    },
     clearFiltersButton: {
-      paddingVertical: 10,
-      paddingHorizontal: 16,
-      borderRadius: 12,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderRadius: borderRadius.md,
       borderWidth: 1,
       borderColor: currentTheme.border,
       backgroundColor: currentTheme.background,
     },
-    clearFiltersText: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: currentTheme.textSecondary,
-    },
     activeFiltersSummary: {
-      marginTop: 12,
+      marginTop: spacing.md,
       maxHeight: 80,
     },
     activeFiltersSummaryContent: {
       flexDirection: 'row',
-      gap: 8,
-      paddingRight: 16,
+      gap: spacing.sm,
+      paddingRight: spacing.lg,
     },
     activeFilterChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 20,
+      gap: spacing.xs,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.full,
       backgroundColor: currentTheme.background,
       borderWidth: 1.5,
       borderColor: currentTheme.border,
-    },
-    activeFilterText: {
-      fontSize: 13,
-      fontWeight: '600',
     },
     searchContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: currentTheme.background,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      marginBottom: 12,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: spacing.md,
+      marginBottom: spacing.md,
       height: 44,
-    },
-    searchIcon: {
-      marginRight: 8,
-    },
-    searchInput: {
-      flex: 1,
-      color: currentTheme.text,
-      fontSize: 15,
-    },
-    filterSection: {
-      marginBottom: 12,
-    },
-    filterLabel: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: currentTheme.textSecondary,
-      marginBottom: 6,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
     },
     filterRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
+      gap: spacing.sm,
     },
     filterChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 20,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.full,
       backgroundColor: currentTheme.background,
       borderWidth: 1.5,
       borderColor: currentTheme.border,
@@ -494,42 +456,24 @@ export default function AllExpensesScreen() {
       shadowRadius: 4,
       elevation: 2,
     },
-    filterChipText: {
-      fontSize: 14,
-      color: currentTheme.text,
-      fontWeight: '600',
-    },
-    filterChipTextActive: {
-      color: '#FFFFFF',
-      fontWeight: '700',
-    },
     compactSummary: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
       backgroundColor: currentTheme.card,
       borderBottomWidth: 1,
       borderBottomColor: currentTheme.border,
     },
-    summaryLabel: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-    },
-    summaryAmount: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-    },
     listContainer: {
       padding: 2,
-      paddingTop: 12,
+      paddingTop: spacing.md,
     },
     expenseItem: {
       backgroundColor: currentTheme.card,
-      borderRadius: 12,
-      marginBottom: 8,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.sm,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.05,
@@ -540,14 +484,8 @@ export default function AllExpensesScreen() {
     },
     expenseItemContent: {
       flexDirection: 'row',
-      padding: 12,
+      padding: spacing.md,
       alignItems: 'center',
-    },
-    deleteButtonContainer: {
-      position: 'absolute',
-      top: -4,
-      right: 0,
-      zIndex: 10,
     },
     iconContainer: {
       width: 36,
@@ -555,68 +493,25 @@ export default function AllExpensesScreen() {
       borderRadius: 18,
       justifyContent: 'center',
       alignItems: 'center',
-      marginRight: 12,
+      marginRight: spacing.md,
     },
     expenseDetails: {
       flex: 1,
     },
-    expenseDescription: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: currentTheme.text,
-      marginBottom: 2,
-    },
-    expenseCategory: {
-      fontSize: 12,
-      color: currentTheme.textSecondary,
-    },
     rightColumn: {
       alignItems: 'flex-end',
-    },
-    expenseAmount: {
-      fontSize: 14,
-      fontWeight: 'bold',
-      color: currentTheme.error,
-    },
-    expenseDate: {
-      fontSize: 12,
-      color: currentTheme.textSecondary,
-      marginTop: 4,
-    },
-    deleteButton: {
-      width: 22,
-      height: 22,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: 'transparent',
     },
     emptyState: {
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 48,
-    },
-    emptyStateIcon: {
-      marginBottom: 16,
-      opacity: 0.3,
-    },
-    emptyStateText: {
-      fontSize: 16,
-      color: currentTheme.textSecondary,
-      textAlign: 'center',
+      paddingVertical: spacing.xxxl,
     },
     // Calendar Styles
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    },
     calendarContainer: {
       width: '90%',
       backgroundColor: currentTheme.card,
-      borderRadius: 16,
-      padding: 16,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.2,
@@ -627,25 +522,12 @@ export default function AllExpensesScreen() {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 16,
-    },
-    calendarTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      textTransform: 'capitalize',
+      marginBottom: spacing.lg,
     },
     weekDaysRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 8,
-    },
-    weekDayText: {
-      width: 40,
-      textAlign: 'center',
-      fontSize: 14,
-      fontWeight: '600',
-      color: currentTheme.textSecondary,
+      marginBottom: spacing.sm,
     },
     daysGrid: {
       flexDirection: 'row',
@@ -670,77 +552,36 @@ export default function AllExpensesScreen() {
     dayCellOutside: {
       opacity: 0.3,
     },
-    dayText: {
-      fontSize: 14,
-      color: currentTheme.text,
-    },
-    dayTextSelected: {
-      color: '#FFFFFF',
-      fontWeight: 'bold',
-    },
-    dayTextOutside: {
-      color: currentTheme.textSecondary,
-    },
     calendarFooter: {
       flexDirection: 'row',
       justifyContent: 'flex-end',
-      marginTop: 16,
-      gap: 12,
-    },
-    calendarButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      borderRadius: 8,
-    },
-    cancelButton: {
-      backgroundColor: 'transparent',
+      marginTop: spacing.lg,
+      gap: spacing.md,
     },
     applyButton: {
       backgroundColor: currentTheme.primary,
-    },
-    cancelButtonText: {
-      color: currentTheme.textSecondary,
-      fontWeight: '600',
-    },
-    applyButtonText: {
-      color: '#FFFFFF',
-      fontWeight: '600',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      borderRadius: spacing.sm,
     },
     deleteModalContent: {
       backgroundColor: currentTheme.card,
-      borderRadius: 16,
-      padding: 24,
+      borderRadius: borderRadius.lg,
+      padding: spacing.xxl,
       width: '85%',
       maxWidth: 400,
       alignItems: 'center',
     },
-    deleteModalIcon: {
-      marginBottom: 16,
-    },
-    deleteModalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      marginBottom: 12,
-      textAlign: 'center',
-    },
-    deleteModalMessage: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-      textAlign: 'center',
-      marginBottom: 24,
-      lineHeight: 20,
-    },
     deleteModalButtons: {
       flexDirection: 'row',
-      gap: 12,
+      gap: spacing.md,
       width: '100%',
     },
     deleteModalButton: {
       flex: 1,
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      borderRadius: 12,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -752,19 +593,9 @@ export default function AllExpensesScreen() {
     deleteModalButtonConfirm: {
       backgroundColor: currentTheme.error,
     },
-    deleteModalButtonCancelText: {
-      color: currentTheme.text,
-      fontWeight: '600',
-      fontSize: 16,
-    },
-    deleteModalButtonConfirmText: {
-      color: '#FFFFFF',
-      fontWeight: '600',
-      fontSize: 16,
-    },
     filtersModalContent: {
       backgroundColor: currentTheme.card,
-      borderRadius: 24,
+      borderRadius: borderRadius.lg,
       maxHeight: '80%',
       width: '90%',
       shadowColor: '#000',
@@ -777,73 +608,48 @@ export default function AllExpensesScreen() {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      paddingBottom: 16,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: currentTheme.border,
     },
-    filtersModalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-    },
     filtersModalBody: {
-      paddingHorizontal: 20,
-      paddingVertical: 16,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
     },
     modalFilterSection: {
-      marginBottom: 24,
+      marginBottom: spacing.xxl,
     },
     modalFilterHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 12,
-    },
-    modalFilterLabel: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: currentTheme.text,
-    },
-    modalFilterCount: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: currentTheme.primary,
+      marginBottom: spacing.md,
     },
     filtersModalFooter: {
       flexDirection: 'row',
-      gap: 12,
-      paddingHorizontal: 20,
-      paddingVertical: 16,
+      gap: spacing.md,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
       borderTopWidth: 1,
       borderTopColor: currentTheme.border,
     },
     clearAllFiltersButton: {
       flex: 1,
-      paddingVertical: 14,
-      borderRadius: 12,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.md,
       borderWidth: 1,
       borderColor: currentTheme.border,
       backgroundColor: currentTheme.background,
       alignItems: 'center',
     },
-    clearAllFiltersButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: currentTheme.textSecondary,
-    },
     applyFiltersButton: {
       flex: 1,
-      paddingVertical: 14,
-      borderRadius: 12,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.md,
       backgroundColor: currentTheme.primary,
       alignItems: 'center',
-    },
-    applyFiltersButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: '#FFFFFF',
     },
   });
 
@@ -888,9 +694,9 @@ export default function AllExpensesScreen() {
       <View style={styles.header}>
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={currentTheme.textSecondary} style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color={currentTheme.textSecondary} style={{ marginRight: spacing.sm }} />
           <TextInput
-            style={styles.searchInput}
+            style={[typography.body, { flex: 1, color: currentTheme.text }]}
             placeholder="Buscar gastos..."
             placeholderTextColor={currentTheme.textSecondary}
             value={searchQuery}
@@ -914,19 +720,19 @@ export default function AllExpensesScreen() {
               size={20}
               color={activeFiltersCount > 0 ? '#FFFFFF' : currentTheme.text}
             />
-            <Text style={[styles.filterButtonText, activeFiltersCount > 0 && styles.filterButtonTextActive]}>
+            <Text style={[typography.bodyBold, { color: activeFiltersCount > 0 ? '#FFFFFF' : currentTheme.text }]}>
               Filtros
             </Text>
             {activeFiltersCount > 0 && (
               <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                <Text style={[typography.small, { color: currentTheme.primary, fontWeight: '700' }]}>{activeFiltersCount}</Text>
               </View>
             )}
           </TouchableOpacity>
 
           {activeFiltersCount > 0 && (
             <TouchableOpacity style={styles.clearFiltersButton} onPress={clearAllFilters}>
-              <Text style={styles.clearFiltersText}>Limpiar</Text>
+              <Text style={[typography.bodyBold, { color: currentTheme.textSecondary }]}>Limpiar</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -942,7 +748,7 @@ export default function AllExpensesScreen() {
             {selectedPeriod !== 'all' && (
               <View style={[styles.activeFilterChip, { backgroundColor: currentTheme.primary + '15', borderColor: currentTheme.primary }]}>
                 <Ionicons name="calendar-outline" size={14} color={currentTheme.primary} />
-                <Text style={[styles.activeFilterText, { color: currentTheme.primary }]}>
+                <Text style={[typography.caption, { color: currentTheme.primary, fontWeight: '600' }]}>
                   {periodFilters.find(f => f.value === selectedPeriod)?.label}
                 </Text>
                 <TouchableOpacity onPress={() => { setSelectedPeriod('all'); setCustomDateRange({ start: null, end: null }); }}>
@@ -953,7 +759,7 @@ export default function AllExpensesScreen() {
             {selectedExpenseType !== 'all' && (
               <View style={[styles.activeFilterChip, { backgroundColor: '#4CAF50' + '15', borderColor: '#4CAF50' }]}>
                 <Ionicons name={selectedExpenseType === 'fixed' ? 'flash' : 'shuffle'} size={14} color="#4CAF50" />
-                <Text style={[styles.activeFilterText, { color: '#4CAF50' }]}>
+                <Text style={[typography.caption, { color: '#4CAF50', fontWeight: '600' }]}>
                   {selectedExpenseType === 'fixed' ? 'Fijos' : 'Variables'}
                 </Text>
                 <TouchableOpacity onPress={() => setSelectedExpenseType('all')}>
@@ -966,7 +772,7 @@ export default function AllExpensesScreen() {
               return (
                 <View key={type} style={[styles.activeFilterChip, { backgroundColor: '#FF9800' + '15', borderColor: '#FF9800' }]}>
                   <Ionicons name={typeFilter?.icon as any} size={14} color="#FF9800" />
-                  <Text style={[styles.activeFilterText, { color: '#FF9800' }]}>
+                  <Text style={[typography.caption, { color: '#FF9800', fontWeight: '600' }]}>
                     {typeFilter?.label}
                   </Text>
                   <TouchableOpacity onPress={() => toggleFinancialType(type)}>
@@ -981,7 +787,7 @@ export default function AllExpensesScreen() {
               return (
                 <View key={catId} style={[styles.activeFilterChip, { backgroundColor: category.color + '15', borderColor: category.color }]}>
                   <Ionicons name={category.icon as any} size={14} color={category.color} />
-                  <Text style={[styles.activeFilterText, { color: category.color }]}>
+                  <Text style={[typography.caption, { color: category.color, fontWeight: '600' }]}>
                     {category.name}
                   </Text>
                   <TouchableOpacity onPress={() => toggleCategory(catId)}>
@@ -996,10 +802,10 @@ export default function AllExpensesScreen() {
 
       {/* Compact Summary Bar */}
       <View style={styles.compactSummary}>
-        <Text style={styles.summaryLabel}>
+        <Text style={[typography.body, { color: currentTheme.textSecondary }]}>
           {filteredExpenses.length} {filteredExpenses.length === 1 ? 'gasto encontrado' : 'gastos encontrados'}
         </Text>
-        <Text style={styles.summaryAmount}>${formatCurrencyDisplay(totalFiltered)}</Text>
+        <Text style={[typography.sectionTitle, { color: currentTheme.text }]}>${formatCurrencyDisplay(totalFiltered)}</Text>
       </View>
 
       {/* Expense List */}
@@ -1027,9 +833,9 @@ export default function AllExpensesScreen() {
                 name="receipt-outline"
                 size={64}
                 color={currentTheme.textSecondary}
-                style={styles.emptyStateIcon}
+                style={{ marginBottom: spacing.lg, opacity: 0.3 }}
               />
-              <Text style={styles.emptyStateText}>
+              <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center' }]}>
                 {searchQuery ? 'No se encontraron gastos' : 'No hay gastos para mostrar'}
               </Text>
             </View>
@@ -1063,14 +869,14 @@ export default function AllExpensesScreen() {
                       <Ionicons name={category.icon as any} size={18} color={category.color} />
                     </View>
                     <View style={styles.expenseDetails}>
-                      <Text style={styles.expenseDescription}>{expense.description}</Text>
-                      <Text style={[styles.expenseCategory, { marginTop: 4 }]} numberOfLines={1}>
+                      <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: 2 }]}>{expense.description}</Text>
+                      <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.xs }]} numberOfLines={1}>
                         {categoryNames || category.name}
                       </Text>
                     </View>
                     <View style={styles.rightColumn}>
-                      <Text style={styles.expenseAmount}>-${formatCurrencyDisplay(expense.amount)}</Text>
-                      <Text style={styles.expenseDate}>
+                      <Text style={[typography.bodyBold, { color: currentTheme.error }]}>-${formatCurrencyDisplay(expense.amount)}</Text>
+                      <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.xs }]}>
                         {format(parseISO(expense.date), 'd MMM yyyy', { locale: es })}
                       </Text>
                     </View>
@@ -1083,16 +889,16 @@ export default function AllExpensesScreen() {
             hasMoreExpenses ? (
               <TouchableOpacity
                 style={{
-                  paddingVertical: 16,
+                  paddingVertical: spacing.lg,
                   alignItems: 'center',
                   backgroundColor: currentTheme.card,
-                  borderRadius: 12,
-                  marginVertical: 8,
-                  marginHorizontal: 8,
+                  borderRadius: borderRadius.md,
+                  marginVertical: spacing.sm,
+                  marginHorizontal: spacing.sm,
                 }}
                 onPress={loadMoreExpenses}
               >
-                <Text style={{ color: currentTheme.primary, fontWeight: '600', fontSize: 14 }}>
+                <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>
                   Cargar más ({filteredExpenses.length - visibleCount} restantes)
                 </Text>
               </TouchableOpacity>
@@ -1108,7 +914,7 @@ export default function AllExpensesScreen() {
         animationType="fade"
         onRequestClose={() => setIsCalendarVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={common.modalOverlay}>
           {renderCalendar()}
         </View>
       </Modal>
@@ -1121,11 +927,11 @@ export default function AllExpensesScreen() {
         onRequestClose={() => setShowFiltersModal(false)}
       >
         <TouchableWithoutFeedback onPress={() => setShowFiltersModal(false)}>
-          <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+          <View style={[common.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
             <TouchableWithoutFeedback onPress={() => {}}>
               <View style={styles.filtersModalContent}>
                 <View style={styles.filtersModalHeader}>
-                  <Text style={styles.filtersModalTitle}>Filtros</Text>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text }]}>Filtros</Text>
                   <TouchableOpacity onPress={() => setShowFiltersModal(false)}>
                     <Ionicons name="close" size={24} color={currentTheme.text} />
                   </TouchableOpacity>
@@ -1134,7 +940,7 @@ export default function AllExpensesScreen() {
                 <ScrollView showsVerticalScrollIndicator={false} style={styles.filtersModalBody}>
                   {/* Period Filter */}
                   <View style={styles.modalFilterSection}>
-                    <Text style={styles.modalFilterLabel}>Período</Text>
+                    <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.md }]}>Período</Text>
                     <View style={styles.filterRow}>
                       {periodFilters.map(filter => (
                         <TouchableOpacity
@@ -1147,8 +953,8 @@ export default function AllExpensesScreen() {
                         >
                           <Text
                             style={[
-                              styles.filterChipText,
-                              selectedPeriod === filter.value && styles.filterChipTextActive,
+                              typography.bodyBold,
+                              { color: selectedPeriod === filter.value ? '#FFFFFF' : currentTheme.text },
                             ]}
                           >
                             {filter.label}
@@ -1160,7 +966,7 @@ export default function AllExpensesScreen() {
 
                   {/* Expense Type Filter (Fixed vs Variable) */}
                   <View style={styles.modalFilterSection}>
-                    <Text style={styles.modalFilterLabel}>Tipo</Text>
+                    <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.md }]}>Tipo</Text>
                     <View style={styles.filterRow}>
                       {expenseTypeFilters.map(filter => {
                         const isSelected = selectedExpenseType === filter.value;
@@ -1173,7 +979,7 @@ export default function AllExpensesScreen() {
                             ]}
                             onPress={() => setSelectedExpenseType(filter.value)}
                           >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <View style={[common.row, { gap: spacing.xs }]}>
                               <Ionicons
                                 name={filter.icon as any}
                                 size={16}
@@ -1181,8 +987,8 @@ export default function AllExpensesScreen() {
                               />
                               <Text
                                 style={[
-                                  styles.filterChipText,
-                                  isSelected && styles.filterChipTextActive,
+                                  typography.bodyBold,
+                                  { color: isSelected ? '#FFFFFF' : currentTheme.text },
                                 ]}
                               >
                                 {filter.label}
@@ -1197,9 +1003,11 @@ export default function AllExpensesScreen() {
                   {/* Financial Type Filter */}
                   <View style={styles.modalFilterSection}>
                     <View style={styles.modalFilterHeader}>
-                      <Text style={styles.modalFilterLabel}>Clasificación</Text>
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Clasificación</Text>
                       {selectedFinancialTypes.length > 0 && (
-                        <Text style={styles.modalFilterCount}>{selectedFinancialTypes.length} seleccionado{selectedFinancialTypes.length > 1 ? 's' : ''}</Text>
+                        <Text style={[typography.caption, { color: currentTheme.primary, fontWeight: '600' }]}>
+                          {selectedFinancialTypes.length} seleccionado{selectedFinancialTypes.length > 1 ? 's' : ''}
+                        </Text>
                       )}
                     </View>
                     <View style={styles.filterRow}>
@@ -1214,7 +1022,7 @@ export default function AllExpensesScreen() {
                             ]}
                             onPress={() => toggleFinancialType(filter.value)}
                           >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <View style={[common.row, { gap: spacing.xs }]}>
                               <Ionicons
                                 name={filter.icon as any}
                                 size={16}
@@ -1222,8 +1030,8 @@ export default function AllExpensesScreen() {
                               />
                               <Text
                                 style={[
-                                  styles.filterChipText,
-                                  isSelected && styles.filterChipTextActive,
+                                  typography.bodyBold,
+                                  { color: isSelected ? '#FFFFFF' : currentTheme.text },
                                 ]}
                               >
                                 {filter.label}
@@ -1241,18 +1049,20 @@ export default function AllExpensesScreen() {
                   {/* Category Filter */}
                   <View style={styles.modalFilterSection}>
                     <View style={styles.modalFilterHeader}>
-                      <Text style={styles.modalFilterLabel}>Categorías</Text>
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Categorías</Text>
                       {selectedCategories.length > 0 && (
-                        <Text style={styles.modalFilterCount}>{selectedCategories.length} seleccionada{selectedCategories.length > 1 ? 's' : ''}</Text>
+                        <Text style={[typography.caption, { color: currentTheme.primary, fontWeight: '600' }]}>
+                          {selectedCategories.length} seleccionada{selectedCategories.length > 1 ? 's' : ''}
+                        </Text>
                       )}
                     </View>
 
                     {/* Category Search */}
                     {categories.length > INITIAL_CATEGORY_FILTER_COUNT && (
-                      <View style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: currentTheme.background, borderRadius: 12, borderWidth: 1, borderColor: currentTheme.border, paddingHorizontal: 12 }}>
+                      <View style={{ marginBottom: spacing.md, flexDirection: 'row', alignItems: 'center', backgroundColor: currentTheme.background, borderRadius: borderRadius.md, borderWidth: 1, borderColor: currentTheme.border, paddingHorizontal: spacing.md }}>
                         <Ionicons name="search" size={18} color={currentTheme.textSecondary} />
                         <TextInput
-                          style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 8, color: currentTheme.text, fontSize: 14 }}
+                          style={[typography.body, { flex: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.sm, color: currentTheme.text }]}
                           placeholder="Buscar categoría..."
                           placeholderTextColor={currentTheme.textSecondary}
                           value={categoryFilterSearch}
@@ -1297,7 +1107,7 @@ export default function AllExpensesScreen() {
                                   ]}
                                   onPress={() => toggleCategory(category.id)}
                                 >
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                  <View style={[common.row, { gap: spacing.xs }]}>
                                     <Ionicons
                                       name={category.icon as any}
                                       size={16}
@@ -1305,8 +1115,8 @@ export default function AllExpensesScreen() {
                                     />
                                     <Text
                                       style={[
-                                        styles.filterChipText,
-                                        isSelected && styles.filterChipTextActive,
+                                        typography.bodyBold,
+                                        { color: isSelected ? '#FFFFFF' : currentTheme.text },
                                       ]}
                                     >
                                       {category.name}
@@ -1325,13 +1135,13 @@ export default function AllExpensesScreen() {
                                 style={[styles.filterChip, { backgroundColor: currentTheme.background }]}
                                 onPress={() => setShowAllCategoryFilters(!showAllCategoryFilters)}
                               >
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={[common.row, { gap: spacing.xs }]}>
                                   <Ionicons
                                     name={showAllCategoryFilters ? "chevron-up" : "chevron-down"}
                                     size={16}
                                     color={currentTheme.textSecondary}
                                   />
-                                  <Text style={[styles.filterChipText, { color: currentTheme.textSecondary }]}>
+                                  <Text style={[typography.bodyBold, { color: currentTheme.textSecondary }]}>
                                     {showAllCategoryFilters ? 'Menos' : `+${categories.length - INITIAL_CATEGORY_FILTER_COUNT}`}
                                   </Text>
                                 </View>
@@ -1340,7 +1150,7 @@ export default function AllExpensesScreen() {
 
                             {/* No results message */}
                             {categoryFilterSearch && displayedCats.length === 0 && (
-                              <Text style={{ color: currentTheme.textSecondary, fontSize: 12, fontStyle: 'italic' }}>
+                              <Text style={[typography.caption, { color: currentTheme.textSecondary, fontStyle: 'italic' }]}>
                                 No se encontraron categorías con "{categoryFilterSearch}"
                               </Text>
                             )}
@@ -1359,13 +1169,13 @@ export default function AllExpensesScreen() {
                       setShowFiltersModal(false);
                     }}
                   >
-                    <Text style={styles.clearAllFiltersButtonText}>Limpiar Todo</Text>
+                    <Text style={[typography.bodyBold, { color: currentTheme.textSecondary }]}>Limpiar Todo</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.applyFiltersButton}
                     onPress={() => setShowFiltersModal(false)}
                   >
-                    <Text style={styles.applyFiltersButtonText}>Aplicar</Text>
+                    <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Aplicar</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1388,16 +1198,16 @@ export default function AllExpensesScreen() {
           setShowDeleteModal(false);
           setExpenseToDelete(null);
         }}>
-          <View style={styles.modalOverlay}>
+          <View style={common.modalOverlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
               <View style={styles.deleteModalContent}>
-                <View style={styles.deleteModalIcon}>
+                <View style={{ marginBottom: spacing.lg }}>
                   <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
                 </View>
-                <Text style={styles.deleteModalTitle}>
+                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
                   {installmentInfo ? 'Eliminar Cuotas' : 'Eliminar Gasto'}
                 </Text>
-                <Text style={styles.deleteModalMessage}>
+                <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
                   {installmentInfo
                     ? `Este gasto tiene ${installmentInfo.count} cuotas. Se eliminarán TODAS las cuotas de "${installmentInfo.description}". Esta acción no se puede deshacer.`
                     : '¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.'
@@ -1411,13 +1221,13 @@ export default function AllExpensesScreen() {
                       setExpenseToDelete(null);
                     }}
                   >
-                    <Text style={styles.deleteModalButtonCancelText}>Cancelar</Text>
+                    <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.deleteModalButton, styles.deleteModalButtonConfirm]}
                     onPress={confirmDelete}
                   >
-                    <Text style={styles.deleteModalButtonConfirmText}>
+                    <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>
                       {installmentInfo ? `Eliminar ${installmentInfo.count} cuotas` : 'Eliminar'}
                     </Text>
                   </TouchableOpacity>

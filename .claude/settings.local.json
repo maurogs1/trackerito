@@ -4,7 +4,11 @@
       "Bash(npx tsc:*)",
       "Bash(powershell -Command:*)",
       "Bash(npx expo install expo-quick-actions)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Read(//c/Users/flore/Desktop/trackerito_whatsapp/src/services/**)",
+      "Read(//c/Users/flore/Desktop/trackerito_whatsapp/src/**)",
+      "Bash(ls:*)",
+      "Bash(dir:*)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -29,6 +29,7 @@ export default function MonthlyPaymentsScreen() {
   } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const common = createCommonStyles(currentTheme);
   const { showSuccess, showError } = useToast();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -51,7 +52,7 @@ export default function MonthlyPaymentsScreen() {
     const message = `¿Marcar "${service.name}" como pagado?\n\nMonto: $${formatCurrencyDisplay(amount)}`;
 
     const confirmed = Platform.OS === 'web'
-      ? window.confirm(message)
+      ? (globalThis as any).confirm?.(message) ?? true
       : await new Promise<boolean>((resolve) => {
           Alert.alert(
             'Confirmar pago',
@@ -91,7 +92,7 @@ export default function MonthlyPaymentsScreen() {
     const message = `¿Querés marcar "${service.name}" como no pagado?\n\nEsto eliminará el registro de pago y el gasto asociado.`;
 
     const confirmed = Platform.OS === 'web'
-      ? window.confirm(message)
+      ? (globalThis as any).confirm?.(message) ?? true
       : await new Promise<boolean>((resolve) => {
           Alert.alert(
             'Deshacer pago',
@@ -114,7 +115,6 @@ export default function MonthlyPaymentsScreen() {
     }
   };
 
-  // Calcular totales
   const servicesTotal = recurringServices.reduce((sum, service) => {
     const payment = getServicePaymentStatus(service.id, currentMonth + 1, currentYear);
     return sum + (payment?.amount || service.estimated_amount);
@@ -129,130 +129,65 @@ export default function MonthlyPaymentsScreen() {
     container: {
       flex: 1,
       backgroundColor: currentTheme.background,
-      padding: 16,
+      padding: spacing.lg,
     },
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
       backgroundColor: currentTheme.card,
-      padding: 16,
-      borderRadius: 12,
-      marginBottom: 16,
-    },
-    monthText: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      textTransform: 'capitalize',
+      padding: spacing.lg,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.lg,
     },
     summaryCard: {
       backgroundColor: currentTheme.card,
-      borderRadius: 12,
-      padding: 20,
-      marginBottom: 16,
+      borderRadius: borderRadius.md,
+      padding: spacing.xl,
+      marginBottom: spacing.lg,
       borderWidth: 1,
       borderColor: currentTheme.border,
     },
-    summaryRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    summaryLabel: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-    },
-    summaryAmount: {
-      fontSize: 28,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-    },
-    progressText: {
-      fontSize: 12,
-      color: currentTheme.textSecondary,
-      marginTop: 8,
-    },
-    sectionTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: currentTheme.text,
-      marginBottom: 12,
-      marginTop: 8,
-    },
     serviceCard: {
       backgroundColor: currentTheme.card,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 12,
+      borderRadius: borderRadius.md,
+      padding: spacing.lg,
+      marginBottom: spacing.md,
       borderWidth: 1,
       borderColor: currentTheme.border,
     },
     emptyCard: {
       backgroundColor: currentTheme.card,
-      borderRadius: 12,
-      padding: 24,
+      borderRadius: borderRadius.md,
+      padding: spacing.xxl,
       alignItems: 'center',
       borderWidth: 1,
       borderColor: currentTheme.border,
     },
-    emptyText: {
-      color: currentTheme.textSecondary,
-      fontSize: 14,
-      textAlign: 'center',
-      marginBottom: 16,
-    },
-    actionButton: {
-      backgroundColor: currentTheme.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 8,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    actionButtonText: {
-      color: '#FFFFFF',
-      fontWeight: '600',
-      fontSize: 14,
-    },
-    serviceName: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: currentTheme.text,
-    },
-    serviceDetail: {
-      fontSize: 12,
-      color: currentTheme.textSecondary,
-      marginTop: 2,
-    },
     paidBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: '#4CAF50' + '20',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
-    },
-    paidText: {
-      fontSize: 12,
-      color: '#4CAF50',
-      marginLeft: 4,
-      fontWeight: '600',
+      backgroundColor: currentTheme.success + '20',
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: borderRadius.sm,
     },
     payButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
       backgroundColor: currentTheme.primary,
-      borderRadius: 8,
+      borderRadius: borderRadius.sm,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
+      gap: spacing.xs,
     },
-    payButtonText: {
-      fontSize: 12,
-      color: '#FFFFFF',
-      fontWeight: '600',
+    iconContainer: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: spacing.md,
     },
   });
 
@@ -264,7 +199,7 @@ export default function MonthlyPaymentsScreen() {
           <TouchableOpacity onPress={() => changeMonth(-1)}>
             <Ionicons name="chevron-back" size={24} color={currentTheme.text} />
           </TouchableOpacity>
-          <Text style={styles.monthText}>
+          <Text style={[typography.sectionTitle, { color: currentTheme.text, textTransform: 'capitalize' }]}>
             {format(currentDate, 'MMMM yyyy', { locale: es })}
           </Text>
           <TouchableOpacity onPress={() => changeMonth(1)}>
@@ -274,36 +209,24 @@ export default function MonthlyPaymentsScreen() {
 
         {/* Resumen */}
         <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
+          <View style={common.rowBetween}>
             <View>
-              <Text style={styles.summaryLabel}>Total Gastos Fijos</Text>
-              <Text style={styles.summaryAmount}>${formatCurrencyDisplay(servicesTotal)}</Text>
+              <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>Total Gastos Fijos</Text>
+              <Text style={[typography.amountMedium, { color: currentTheme.text }]}>
+                ${formatCurrencyDisplay(servicesTotal)}
+              </Text>
             </View>
-            <View style={{
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              backgroundColor: currentTheme.primary + '20',
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}>
+            <View style={[common.iconContainer, { backgroundColor: currentTheme.primary + '20' }]}>
               <Ionicons name="flash" size={28} color={currentTheme.primary} />
             </View>
           </View>
-          <Text style={styles.progressText}>
+          <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>
             {paidCount} de {recurringServices.length} pagados este mes
           </Text>
-          {/* Barra de progreso */}
-          <View style={{
-            height: 6,
-            backgroundColor: currentTheme.surface,
-            borderRadius: 3,
-            marginTop: 8,
-            overflow: 'hidden'
-          }}>
+          <View style={{ height: 6, backgroundColor: currentTheme.surface, borderRadius: 3, marginTop: spacing.sm, overflow: 'hidden' }}>
             <View style={{
               height: '100%',
-              backgroundColor: '#4CAF50',
+              backgroundColor: currentTheme.success,
               borderRadius: 3,
               width: recurringServices.length > 0 ? `${(paidCount / recurringServices.length) * 100}%` : '0%',
             }} />
@@ -311,30 +234,32 @@ export default function MonthlyPaymentsScreen() {
         </View>
 
         {/* Lista de Gastos Fijos */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Text style={styles.sectionTitle}>Mis Gastos Fijos</Text>
+        <View style={[common.rowBetween, { marginBottom: spacing.md }]}>
+          <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Mis Gastos Fijos</Text>
           <TouchableOpacity
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            style={common.row}
             onPress={() => navigation.navigate('RecurringServices')}
           >
             <Ionicons name="settings-outline" size={18} color={currentTheme.primary} />
-            <Text style={{ color: currentTheme.primary, fontSize: 14, fontWeight: '600' }}>Gestionar</Text>
+            <Text style={[typography.bodyBold, { color: currentTheme.primary, marginLeft: spacing.xs }]}>Gestionar</Text>
           </TouchableOpacity>
         </View>
 
         {recurringServices.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name="flash-outline" size={48} color={currentTheme.textSecondary} style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyText}>
+            <Ionicons name="flash-outline" size={48} color={currentTheme.textSecondary} style={{ marginBottom: spacing.md }} />
+            <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.lg }]}>
               No tienes gastos fijos configurados.{'\n'}
               Agrega alquiler, servicios, suscripciones, etc.
             </Text>
             <TouchableOpacity
-              style={styles.actionButton}
+              style={common.buttonPrimary}
               onPress={() => navigation.navigate('RecurringServices')}
             >
-              <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Agregar Gasto Fijo</Text>
+              <View style={common.row}>
+                <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
+                <Text style={[common.buttonPrimaryText, { marginLeft: spacing.sm }]}>Agregar Gasto Fijo</Text>
+              </View>
             </TouchableOpacity>
           </View>
         ) : (
@@ -344,40 +269,27 @@ export default function MonthlyPaymentsScreen() {
 
             return (
               <View key={service.id} style={styles.serviceCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    backgroundColor: service.color,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    marginRight: 12
-                  }}>
+                <View style={common.row}>
+                  <View style={[styles.iconContainer, { backgroundColor: service.color }]}>
                     <Ionicons name={service.icon as any} size={22} color="#FFFFFF" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.serviceName}>{service.name}</Text>
-                    <Text style={styles.serviceDetail}>
+                    <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{service.name}</Text>
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
                       ${formatCurrencyDisplay(service.estimated_amount)} - Vence el {service.day_of_month}
                     </Text>
                   </View>
                   {isPaid ? (
-                    <TouchableOpacity
-                      style={styles.paidBadge}
-                      onPress={() => handleUnmarkPayment(service)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                      <Text style={styles.paidText}>Pagado</Text>
+                    <TouchableOpacity style={styles.paidBadge} onPress={() => handleUnmarkPayment(service)} activeOpacity={0.7}>
+                      <Ionicons name="checkmark-circle" size={16} color={currentTheme.success} />
+                      <Text style={[typography.caption, { color: currentTheme.success, marginLeft: spacing.xs, fontWeight: '600' }]}>
+                        Pagado
+                      </Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity
-                      style={styles.payButton}
-                      onPress={() => handleMarkAsPaid(service)}
-                    >
+                    <TouchableOpacity style={styles.payButton} onPress={() => handleMarkAsPaid(service)}>
                       <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-                      <Text style={styles.payButtonText}>Pagar</Text>
+                      <Text style={[typography.caption, { color: '#FFFFFF', fontWeight: '600' }]}>Pagar</Text>
                     </TouchableOpacity>
                   )}
                 </View>

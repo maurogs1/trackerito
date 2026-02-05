@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TouchableWithoutFeedback, Platform } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
@@ -30,6 +30,7 @@ export default function AddExpenseScreen() {
   const { addExpense, addExpenseWithInstallments, updateExpense, expenses, preferences, getMostUsedCategories, addCategory, categories: allCategories, ensureDefaultCategories, paymentGroups, loadPaymentGroups, addPaymentGroup } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const common = createCommonStyles(currentTheme);
   const { showSuccess } = useToast();
 
   const expenseId = route.params?.expenseId;
@@ -311,23 +312,32 @@ export default function AddExpenseScreen() {
     }
   };
 
+  const getTypeColor = (type: FinancialType) => {
+    switch (type) {
+      case 'needs': return '#4CAF50'; // Green
+      case 'wants': return '#FF9800'; // Orange
+      case 'savings': return '#2196F3'; // Blue
+      default: return currentTheme.textSecondary;
+    }
+  };
+
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      padding: 20,
+      padding: spacing.xl,
     },
     label: {
-      fontSize: 16,
+      ...typography.body,
       color: currentTheme.textSecondary,
-      marginBottom: 8,
-      marginTop: 16,
+      marginBottom: spacing.sm,
+      marginTop: spacing.lg,
     },
     inputContainer: {
       backgroundColor: currentTheme.card,
-      borderRadius: 12,
+      borderRadius: borderRadius.md,
       borderWidth: 1,
       borderColor: currentTheme.border,
-      height: 50, // Fixed height for consistency
+      height: 50,
       justifyContent: 'center',
     },
     inputFocused: {
@@ -335,7 +345,7 @@ export default function AddExpenseScreen() {
     },
     inputField: {
       color: currentTheme.text,
-      paddingHorizontal: 16,
+      paddingHorizontal: spacing.lg,
       fontSize: 16,
       height: '100%',
       ...Platform.select({
@@ -343,60 +353,27 @@ export default function AddExpenseScreen() {
           outlineStyle: 'none',
         }
       }),
-      textAlignVertical: 'center', // For Android Text centering
-
+      textAlignVertical: 'center',
     } as any,
-    input: {
-      backgroundColor: currentTheme.card,
-      color: currentTheme.text,
-      padding: 16,
-      borderRadius: 12,
-      fontSize: 16,
-      borderWidth: 1,
-      borderColor: currentTheme.border,
-    },
-    searchContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: currentTheme.card,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: currentTheme.border,
-    },
-    searchInput: {
-      flex: 1,
-      paddingVertical: 12,
-      color: currentTheme.text,
-      marginLeft: 8,
-    },
     categoryContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 10,
-      marginTop: 8,
+      gap: spacing.md,
+      marginTop: spacing.sm,
     },
     categoryChip: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.full,
       backgroundColor: currentTheme.card,
       borderWidth: 1,
       borderColor: currentTheme.border,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: spacing.xs,
     },
     categoryChipSelected: {
       borderWidth: 2,
-    },
-    categoryText: {
-      color: currentTheme.text,
-    },
-    categoryTextSelected: {
-      color: '#FFFFFF',
-      fontWeight: 'bold',
     },
     addCategoryButton: {
       width: 40,
@@ -411,27 +388,21 @@ export default function AddExpenseScreen() {
     },
     saveButton: {
       backgroundColor: currentTheme.primary,
-      padding: 18,
-      borderRadius: 12,
+      padding: spacing.lg,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
-      marginTop: 40,
-      marginBottom: 40,
+      marginTop: spacing.xxxl,
+      marginBottom: spacing.xxxl,
     },
-    saveButtonText: {
-      color: '#FFFFFF',
-      fontSize: 18,
-      fontWeight: 'bold',
-    },
-    // Type Selector Styles
     typeContainer: {
       flexDirection: 'row',
-      gap: 12,
-      marginTop: 8,
+      gap: spacing.md,
+      marginTop: spacing.sm,
     },
     typeButton: {
       flex: 1,
-      paddingVertical: 12,
-      borderRadius: 12,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       borderWidth: 1,
       borderColor: currentTheme.border,
@@ -440,44 +411,11 @@ export default function AddExpenseScreen() {
     typeButtonSelected: {
       borderWidth: 2,
     },
-    typeText: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: currentTheme.textSecondary,
-    },
-    typeTextSelected: {
-      color: '#FFFFFF',
-    },
-    // Modal Styles
-    modalContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    modalContent: {
-      backgroundColor: currentTheme.card,
-      padding: 20,
-      borderRadius: 16,
-      width: '90%',
-      maxHeight: '80%',
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      marginBottom: 16,
-      color: currentTheme.text,
-    },
-    sectionLabel: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-      marginBottom: 8,
-    },
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
-      marginBottom: 16,
+      gap: spacing.md,
+      marginBottom: spacing.lg,
     },
     selectionItem: {
       width: 40,
@@ -491,29 +429,55 @@ export default function AddExpenseScreen() {
     selectedItem: {
       borderColor: currentTheme.text,
     },
-    modalButtons: {
+    installmentCard: {
+      marginTop: spacing.md,
+      padding: spacing.lg,
+      backgroundColor: currentTheme.card,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+    },
+    installmentInfoCard: {
+      marginTop: spacing.lg,
+      padding: spacing.lg,
+      backgroundColor: currentTheme.primary + '10',
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: currentTheme.primary + '30',
+    },
+    installmentChip: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: spacing.sm,
+      borderWidth: 1,
+    },
+    installmentPreview: {
+      marginTop: spacing.lg,
+      padding: spacing.md,
+      backgroundColor: currentTheme.primary + '10',
+      borderRadius: spacing.sm,
+    },
+    groupChip: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.full,
+      borderWidth: 1,
       flexDirection: 'row',
-      justifyContent: 'flex-end',
-      gap: 12,
-      marginTop: 16,
+      alignItems: 'center',
+      gap: spacing.xs,
     },
-    button: {
-      padding: 10,
-    },
-    buttonText: {
-      color: currentTheme.primary,
-      fontWeight: 'bold',
+    addGroupButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: currentTheme.surface,
+      borderWidth: 1,
+      borderColor: currentTheme.primary,
+      borderStyle: 'dashed',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
   });
-
-  const getTypeColor = (type: FinancialType) => {
-    switch (type) {
-      case 'needs': return '#4CAF50'; // Green
-      case 'wants': return '#FF9800'; // Orange
-      case 'savings': return '#2196F3'; // Blue
-      default: return currentTheme.textSecondary;
-    }
-  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -550,7 +514,7 @@ export default function AddExpenseScreen() {
                 <Text style={styles.label}>Fecha</Text>
                 <View style={styles.inputContainer}>
                   {Platform.OS === 'web' ? (
-                    <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 16 }}>
+                    <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg }}>
                       {/* @ts-ignore - React Native Web specific */}
                       {React.createElement('input', {
                         type: 'date',
@@ -570,11 +534,11 @@ export default function AddExpenseScreen() {
                     </View>
                   ) : (
                     <TouchableOpacity
-                      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: '100%' }}
+                      style={[common.row, { paddingHorizontal: spacing.lg, height: '100%' }]}
                       onPress={() => setShowDatePicker(true)}
                     >
-                      <Ionicons name="calendar-outline" size={20} color={currentTheme.textSecondary} style={{ marginRight: 10 }} />
-                      <Text style={{ color: currentTheme.text, fontSize: 16 }}>
+                      <Ionicons name="calendar-outline" size={20} color={currentTheme.textSecondary} style={{ marginRight: spacing.md }} />
+                      <Text style={[typography.body, { color: currentTheme.text }]}>
                         {format(date, 'dd/MM/yyyy', { locale: es })}
                       </Text>
                     </TouchableOpacity>
@@ -593,71 +557,58 @@ export default function AddExpenseScreen() {
 
                 {/* Info de Cuotas (solo en modo edición) */}
                 {isEditing && isPartOfInstallments && siblingInstallments.length > 0 && (
-                  <View style={{
-                    marginTop: 16,
-                    padding: 16,
-                    backgroundColor: currentTheme.primary + '10',
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: currentTheme.primary + '30',
-                  }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={styles.installmentInfoCard}>
+                    <View style={[common.row, { marginBottom: spacing.md }]}>
                       <Ionicons name="layers" size={20} color={currentTheme.primary} />
-                      <Text style={{ color: currentTheme.text, fontWeight: 'bold', fontSize: 16, marginLeft: 8 }}>
+                      <Text style={[typography.bodyBold, { color: currentTheme.text, marginLeft: spacing.sm }]}>
                         Pago en Cuotas
                       </Text>
                     </View>
 
                     {/* Info del gasto original */}
                     {parentExpense && (
-                      <View style={{ marginBottom: 12 }}>
-                        <Text style={{ color: currentTheme.textSecondary, fontSize: 12 }}>Compra original:</Text>
-                        <Text style={{ color: currentTheme.text, fontSize: 14, fontWeight: '600' }}>
+                      <View style={{ marginBottom: spacing.md }}>
+                        <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>Compra original:</Text>
+                        <Text style={[typography.bodyBold, { color: currentTheme.text }]}>
                           {parentExpense.description?.replace(/ - Cuota \d+\/\d+$/, '')}
                         </Text>
-                        <Text style={{ color: currentTheme.primary, fontSize: 16, fontWeight: 'bold' }}>
+                        <Text style={[typography.bodyBold, { color: currentTheme.primary, fontSize: 16 }]}>
                           Total: ${parentExpense.totalAmount?.toLocaleString('es-AR') || (siblingInstallments.reduce((sum: number, e: any) => sum + e.amount, 0)).toLocaleString('es-AR')}
                         </Text>
                       </View>
                     )}
 
                     {/* Lista de cuotas */}
-                    <Text style={{ color: currentTheme.textSecondary, fontSize: 12, marginBottom: 8 }}>
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
                       Cuotas ({siblingInstallments.filter((e: any) => e.paymentStatus === 'paid').length}/{siblingInstallments.length} pagadas):
                     </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -8 }}>
-                      <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 8 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -spacing.sm }}>
+                      <View style={[common.row, { gap: spacing.sm, paddingHorizontal: spacing.sm }]}>
                         {siblingInstallments.map((inst: any) => {
                           const isCurrent = inst.id === expenseId;
                           const isPaid = inst.paymentStatus === 'paid';
                           return (
                             <TouchableOpacity
                               key={inst.id}
-                              style={{
-                                paddingVertical: 8,
-                                paddingHorizontal: 12,
-                                borderRadius: 8,
+                              style={[styles.installmentChip, {
                                 backgroundColor: isCurrent ? currentTheme.primary : isPaid ? currentTheme.success + '20' : currentTheme.card,
-                                borderWidth: 1,
                                 borderColor: isCurrent ? currentTheme.primary : isPaid ? currentTheme.success : currentTheme.border,
-                              }}
+                              }]}
                               onPress={() => {
                                 if (!isCurrent) {
                                   navigation.setParams({ expenseId: inst.id });
                                 }
                               }}
                             >
-                              <Text style={{
+                              <Text style={[typography.caption, {
                                 color: isCurrent ? '#FFFFFF' : isPaid ? currentTheme.success : currentTheme.text,
                                 fontWeight: isCurrent ? 'bold' : 'normal',
-                                fontSize: 12,
-                              }}>
+                              }]}>
                                 {inst.installmentNumber}/{siblingInstallments.length}
                               </Text>
-                              <Text style={{
+                              <Text style={[typography.small, {
                                 color: isCurrent ? 'rgba(255,255,255,0.8)' : currentTheme.textSecondary,
-                                fontSize: 10,
-                              }}>
+                              }]}>
                                 ${inst.amount?.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                               </Text>
                               {isPaid && !isCurrent && (
@@ -669,31 +620,31 @@ export default function AddExpenseScreen() {
                       </View>
                     </ScrollView>
 
-                    <Text style={{ color: currentTheme.textSecondary, fontSize: 11, marginTop: 8, fontStyle: 'italic' }}>
+                    <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: spacing.sm, fontStyle: 'italic' }]}>
                       Toca una cuota para editarla
                     </Text>
                   </View>
                 )}
 
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, color: currentTheme.textSecondary }}>Categoría</Text>
+                <View style={[common.rowBetween, { marginTop: spacing.lg, marginBottom: spacing.sm }]}>
+                  <Text style={[typography.body, { color: currentTheme.textSecondary }]}>Categoría</Text>
                   <View style={{
                     flexDirection: 'row',
                     alignItems: 'center',
                     backgroundColor: currentTheme.card,
-                    borderRadius: 8,
-                    paddingHorizontal: 8,
+                    borderRadius: spacing.sm,
+                    paddingHorizontal: spacing.sm,
                     borderWidth: 1,
                     borderColor: isSearchFocused ? currentTheme.primary : currentTheme.border,
                     flex: 1,
-                    marginLeft: 12,
+                    marginLeft: spacing.md,
                     height: 36
                   }}>
                     <Ionicons name="search" size={16} color={isSearchFocused ? currentTheme.primary : currentTheme.textSecondary} />
                     <TextInput
                       style={{
                         flex: 1,
-                        marginLeft: 8,
+                        marginLeft: spacing.sm,
                         color: currentTheme.text,
                         paddingVertical: 0,
                         fontSize: 14,
@@ -739,8 +690,9 @@ export default function AddExpenseScreen() {
                         />
                         <Text
                           style={[
-                            styles.categoryText,
-                            isSelected && styles.categoryTextSelected,
+                            typography.body,
+                            { color: isSelected ? '#FFFFFF' : currentTheme.text },
+                            isSelected && { fontWeight: 'bold' },
                           ]}
                         >
                           {cat.name}
@@ -754,7 +706,7 @@ export default function AddExpenseScreen() {
                       style={styles.categoryChip}
                       onPress={() => setShowAllCategories(!showAllCategories)}
                     >
-                      <Text style={styles.categoryText}>
+                      <Text style={[typography.body, { color: currentTheme.text }]}>
                         {showAllCategories ? 'Ver menos' : `Ver más (${filteredCategories.length - INITIAL_CATEGORY_COUNT})`}
                       </Text>
                       <Ionicons name={showAllCategories ? "chevron-up" : "chevron-down"} size={16} color={currentTheme.text} />
@@ -785,7 +737,7 @@ export default function AddExpenseScreen() {
                         ]}
                         onPress={() => setFinancialType(type)}
                       >
-                        <Text style={[styles.typeText, isSelected && styles.typeTextSelected, !isSelected && { color }]}>
+                        <Text style={[typography.bodyBold, { color: isSelected ? '#FFFFFF' : color }]}>
                           {label}
                         </Text>
                       </TouchableOpacity>
@@ -795,15 +747,15 @@ export default function AddExpenseScreen() {
 
                 {/* Sección de Cuotas */}
                 {!isEditing && (
-                  <View style={{ marginTop: 24 }}>
+                  <View style={{ marginTop: spacing.xxl }}>
                     <TouchableOpacity
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: 16,
+                        padding: spacing.lg,
                         backgroundColor: currentTheme.card,
-                        borderRadius: 12,
+                        borderRadius: borderRadius.md,
                         borderWidth: 1,
                         borderColor: hasInstallments ? currentTheme.primary : currentTheme.border,
                       }}
@@ -818,15 +770,10 @@ export default function AddExpenseScreen() {
                         }
                       }}
                     >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <View style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
+                      <View style={[common.row, { gap: spacing.md }]}>
+                        <View style={[common.iconContainer, {
                           backgroundColor: hasInstallments ? currentTheme.primary + '20' : currentTheme.surface,
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                        }}>
+                        }]}>
                           <Ionicons
                             name="layers-outline"
                             size={24}
@@ -834,10 +781,10 @@ export default function AddExpenseScreen() {
                           />
                         </View>
                         <View>
-                          <Text style={{ color: currentTheme.text, fontSize: 16, fontWeight: '600' }}>
+                          <Text style={[typography.bodyBold, { color: currentTheme.text }]}>
                             Pagar en cuotas
                           </Text>
-                          <Text style={{ color: currentTheme.textSecondary, fontSize: 12 }}>
+                          <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
                             Divide el pago en varios meses
                           </Text>
                         </View>
@@ -859,25 +806,18 @@ export default function AddExpenseScreen() {
                     </TouchableOpacity>
 
                     {hasInstallments && (
-                      <View style={{
-                        marginTop: 12,
-                        padding: 16,
-                        backgroundColor: currentTheme.card,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: currentTheme.border,
-                      }}>
-                        <Text style={{ color: currentTheme.textSecondary, marginBottom: 8 }}>
+                      <View style={styles.installmentCard}>
+                        <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
                           Número total de cuotas
                         </Text>
-                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' }}>
                           {['2', '3', '6', '12', '18', '24'].map((num) => (
                             <TouchableOpacity
                               key={num}
                               style={{
-                                paddingHorizontal: 16,
-                                paddingVertical: 10,
-                                borderRadius: 8,
+                                paddingHorizontal: spacing.lg,
+                                paddingVertical: spacing.md,
+                                borderRadius: spacing.sm,
                                 backgroundColor: installments === num ? currentTheme.primary : currentTheme.surface,
                                 borderWidth: 1,
                                 borderColor: installments === num ? currentTheme.primary : currentTheme.border,
@@ -892,10 +832,10 @@ export default function AddExpenseScreen() {
                                 }
                               }}
                             >
-                              <Text style={{
+                              <Text style={[typography.body, {
                                 color: installments === num ? '#FFFFFF' : currentTheme.text,
                                 fontWeight: installments === num ? 'bold' : 'normal',
-                              }}>
+                              }]}>
                                 {num}
                               </Text>
                             </TouchableOpacity>
@@ -903,9 +843,9 @@ export default function AddExpenseScreen() {
                           {/* Input personalizado mejorado */}
                           <TouchableOpacity
                             style={{
-                              paddingHorizontal: 12,
-                              paddingVertical: 10,
-                              borderRadius: 8,
+                              paddingHorizontal: spacing.md,
+                              paddingVertical: spacing.md,
+                              borderRadius: spacing.sm,
                               backgroundColor: !['2', '3', '6', '12', '18', '24'].includes(installments) ? currentTheme.primary : currentTheme.surface,
                               borderWidth: 1,
                               borderColor: !['2', '3', '6', '12', '18', '24'].includes(installments) ? currentTheme.primary : currentTheme.border,
@@ -944,19 +884,19 @@ export default function AddExpenseScreen() {
                                 autoFocus
                               />
                             ) : (
-                              <Text style={{ color: currentTheme.text }}>Otro</Text>
+                              <Text style={[typography.body, { color: currentTheme.text }]}>Otro</Text>
                             )}
                           </TouchableOpacity>
                         </View>
 
                         {/* Selector de cuota inicial */}
                         {parseInt(installments) > 1 && (
-                          <View style={{ marginTop: 16 }}>
-                            <Text style={{ color: currentTheme.textSecondary, marginBottom: 8 }}>
+                          <View style={{ marginTop: spacing.lg }}>
+                            <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
                               ¿Cuál cuota pagas hoy?
                             </Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                              <View style={{ flexDirection: 'row', gap: 6 }}>
+                              <View style={[common.row, { gap: spacing.xs }]}>
                                 {Array.from({ length: parseInt(installments) || 0 }, (_, i) => i + 1).map((num) => (
                                   <TouchableOpacity
                                     key={num}
@@ -972,11 +912,10 @@ export default function AddExpenseScreen() {
                                     }}
                                     onPress={() => setStartingInstallment(String(num))}
                                   >
-                                    <Text style={{
+                                    <Text style={[typography.caption, {
                                       color: startingInstallment === String(num) ? '#FFFFFF' : currentTheme.text,
                                       fontWeight: startingInstallment === String(num) ? 'bold' : 'normal',
-                                      fontSize: 12,
-                                    }}>
+                                    }]}>
                                       {num}
                                     </Text>
                                   </TouchableOpacity>
@@ -984,7 +923,7 @@ export default function AddExpenseScreen() {
                               </View>
                             </ScrollView>
                             {parseInt(startingInstallment) > 1 && (
-                              <Text style={{ color: currentTheme.textSecondary, fontSize: 11, marginTop: 6, fontStyle: 'italic' }}>
+                              <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: spacing.xs, fontStyle: 'italic' }]}>
                                 Se crearán las cuotas 1-{parseInt(startingInstallment) - 1} como ya pagadas
                               </Text>
                             )}
@@ -993,19 +932,14 @@ export default function AddExpenseScreen() {
 
                         {/* Preview de cuotas */}
                         {amount && parseInt(installments) > 1 && (
-                          <View style={{
-                            marginTop: 16,
-                            padding: 12,
-                            backgroundColor: currentTheme.primary + '10',
-                            borderRadius: 8,
-                          }}>
-                            <Text style={{ color: currentTheme.text, fontSize: 14 }}>
+                          <View style={styles.installmentPreview}>
+                            <Text style={[typography.body, { color: currentTheme.text }]}>
                               <Text style={{ fontWeight: 'bold' }}>{installments} cuotas</Text> de{' '}
                               <Text style={{ fontWeight: 'bold', color: currentTheme.primary }}>
                                 ${((parseCurrencyInput(amount) || 0) / parseInt(installments || '1')).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                               </Text>
                             </Text>
-                            <Text style={{ color: currentTheme.textSecondary, fontSize: 12, marginTop: 4 }}>
+                            <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.xs }]}>
                               {parseInt(startingInstallment) === 1
                                 ? `Primera cuota: ${format(date, 'MMMM yyyy', { locale: es })}`
                                 : `Pagando cuota ${startingInstallment}/${installments} en ${format(date, 'MMMM yyyy', { locale: es })}`
@@ -1016,24 +950,17 @@ export default function AddExpenseScreen() {
 
                         {/* Selector de Grupo de Pago (opcional) */}
                         {parseInt(installments) > 1 && (
-                          <View style={{ marginTop: 16 }}>
-                            <Text style={{ color: currentTheme.textSecondary, marginBottom: 8 }}>
+                          <View style={{ marginTop: spacing.lg }}>
+                            <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
                               Agrupar en (opcional)
                             </Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                              <View style={[common.row, { gap: spacing.sm }]}>
                                 <TouchableOpacity
-                                  style={{
-                                    paddingHorizontal: 14,
-                                    paddingVertical: 8,
-                                    borderRadius: 20,
+                                  style={[styles.groupChip, {
                                     backgroundColor: !selectedPaymentGroupId ? currentTheme.primary : currentTheme.surface,
-                                    borderWidth: 1,
                                     borderColor: !selectedPaymentGroupId ? currentTheme.primary : currentTheme.border,
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                  }}
+                                  }]}
                                   onPress={() => setSelectedPaymentGroupId(null)}
                                 >
                                   <Ionicons
@@ -1041,28 +968,20 @@ export default function AddExpenseScreen() {
                                     size={16}
                                     color={!selectedPaymentGroupId ? '#FFFFFF' : currentTheme.textSecondary}
                                   />
-                                  <Text style={{
+                                  <Text style={[typography.caption, {
                                     color: !selectedPaymentGroupId ? '#FFFFFF' : currentTheme.text,
                                     fontWeight: !selectedPaymentGroupId ? 'bold' : 'normal',
-                                    fontSize: 13,
-                                  }}>
+                                  }]}>
                                     Sin grupo
                                   </Text>
                                 </TouchableOpacity>
                                 {paymentGroups.map((group) => (
                                   <TouchableOpacity
                                     key={group.id}
-                                    style={{
-                                      paddingHorizontal: 14,
-                                      paddingVertical: 8,
-                                      borderRadius: 20,
+                                    style={[styles.groupChip, {
                                       backgroundColor: selectedPaymentGroupId === group.id ? group.color : currentTheme.surface,
-                                      borderWidth: 1,
                                       borderColor: selectedPaymentGroupId === group.id ? group.color : currentTheme.border,
-                                      flexDirection: 'row',
-                                      alignItems: 'center',
-                                      gap: 6,
-                                    }}
+                                    }]}
                                     onPress={() => setSelectedPaymentGroupId(group.id)}
                                   >
                                     <Ionicons
@@ -1070,35 +989,24 @@ export default function AddExpenseScreen() {
                                       size={16}
                                       color={selectedPaymentGroupId === group.id ? '#FFFFFF' : group.color}
                                     />
-                                    <Text style={{
+                                    <Text style={[typography.caption, {
                                       color: selectedPaymentGroupId === group.id ? '#FFFFFF' : currentTheme.text,
                                       fontWeight: selectedPaymentGroupId === group.id ? 'bold' : 'normal',
-                                      fontSize: 13,
-                                    }}>
+                                    }]}>
                                       {group.name}
                                     </Text>
                                   </TouchableOpacity>
                                 ))}
                                 {/* Botón + para crear grupo */}
                                 <TouchableOpacity
-                                  style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 18,
-                                    backgroundColor: currentTheme.surface,
-                                    borderWidth: 1,
-                                    borderColor: currentTheme.primary,
-                                    borderStyle: 'dashed',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                  }}
+                                  style={styles.addGroupButton}
                                   onPress={() => setGroupModalVisible(true)}
                                 >
                                   <Ionicons name="add" size={20} color={currentTheme.primary} />
                                 </TouchableOpacity>
                               </View>
                             </ScrollView>
-                            <Text style={{ color: currentTheme.textSecondary, fontSize: 11, marginTop: 6, fontStyle: 'italic' }}>
+                            <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: spacing.xs, fontStyle: 'italic' }]}>
                               Agrupa cuotas para pagarlas juntas como "resumen"
                             </Text>
                           </View>
@@ -1108,12 +1016,12 @@ export default function AddExpenseScreen() {
                   </View>
                 )}
 
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 40, marginBottom: 40 }}>
+                <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.xxxl, marginBottom: spacing.xxxl }}>
                     <TouchableOpacity
                         style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0 }]}
                         onPress={handleSave}
                     >
-                        <Text style={styles.saveButtonText}>
+                        <Text style={[typography.button, { color: '#FFFFFF' }]}>
                           {isEditing ? 'Actualizar' : hasInstallments ? `Guardar en ${installments} cuotas` : 'Guardar'}
                         </Text>
                     </TouchableOpacity>
@@ -1124,21 +1032,21 @@ export default function AddExpenseScreen() {
       {/* Quick Add Category Modal */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
-          <View style={styles.modalContainer}>
+          <View style={common.modalOverlay}>
             <TouchableWithoutFeedback onPress={() => { }}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Nueva Categoría</Text>
+              <View style={common.modalContent}>
+                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.lg }]}>Nueva Categoría</Text>
 
-                <Text style={styles.sectionLabel}>Nombre</Text>
+                <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>Nombre</Text>
                 <TextInput
-                  style={styles.input}
+                  style={common.input}
                   placeholder="Ej: Fútbol"
                   placeholderTextColor={currentTheme.textSecondary}
                   value={newCategoryName}
                   onChangeText={setNewCategoryName}
                 />
 
-                <Text style={styles.sectionLabel}>Icono</Text>
+                <Text style={[typography.label, { color: currentTheme.textSecondary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>Icono</Text>
                 <View style={styles.grid}>
                   {ICONS.slice(0, showAllIcons ? undefined : INITIAL_ICON_COUNT).map(icon => (
                     <TouchableOpacity
@@ -1150,16 +1058,16 @@ export default function AddExpenseScreen() {
                     </TouchableOpacity>
                   ))}
                   <TouchableOpacity
-                    style={[styles.selectionItem, { backgroundColor: currentTheme.surface, width: 'auto', paddingHorizontal: 12 }]}
+                    style={[styles.selectionItem, { backgroundColor: currentTheme.surface, width: 'auto', paddingHorizontal: spacing.md }]}
                     onPress={() => setShowAllIcons(!showAllIcons)}
                   >
-                    <Text style={{ fontSize: 12, color: currentTheme.primary, fontWeight: 'bold' }}>
+                    <Text style={[typography.caption, { color: currentTheme.primary, fontWeight: 'bold' }]}>
                       {showAllIcons ? 'Menos' : 'Ver más'}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.sectionLabel}>Color</Text>
+                <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>Color</Text>
                 <View style={styles.grid}>
                   {COLORS.map(color => (
                     <TouchableOpacity
@@ -1170,12 +1078,12 @@ export default function AddExpenseScreen() {
                   ))}
                 </View>
 
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity style={styles.button} onPress={() => setModalVisible(false)}>
-                    <Text style={styles.buttonText}>Cancelar</Text>
+                <View style={[common.rowBetween, { marginTop: spacing.xl }]}>
+                  <TouchableOpacity style={{ padding: spacing.md }} onPress={() => setModalVisible(false)}>
+                    <Text style={[typography.body, { color: currentTheme.primary }]}>Cancelar</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.button} onPress={handleQuickAddCategory}>
-                    <Text style={styles.buttonText}>Guardar</Text>
+                  <TouchableOpacity style={{ padding: spacing.md }} onPress={handleQuickAddCategory}>
+                    <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Guardar</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1186,14 +1094,14 @@ export default function AddExpenseScreen() {
       {/* Quick Add Payment Group Modal */}
       <Modal visible={groupModalVisible} transparent animationType="fade">
         <TouchableWithoutFeedback onPress={() => setGroupModalVisible(false)}>
-          <View style={styles.modalContainer}>
+          <View style={common.modalOverlay}>
             <TouchableWithoutFeedback onPress={() => { }}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Nuevo Grupo de Pago</Text>
+              <View style={common.modalContent}>
+                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.lg }]}>Nuevo Grupo de Pago</Text>
 
-                <Text style={styles.sectionLabel}>Nombre</Text>
+                <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>Nombre</Text>
                 <TextInput
-                  style={styles.input}
+                  style={common.input}
                   placeholder="Ej: TC Macro, Cuotas Tienda"
                   placeholderTextColor={currentTheme.textSecondary}
                   value={newGroupName}
@@ -1201,7 +1109,7 @@ export default function AddExpenseScreen() {
                   autoFocus
                 />
 
-                <Text style={styles.sectionLabel}>Icono</Text>
+                <Text style={[typography.label, { color: currentTheme.textSecondary, marginTop: spacing.lg, marginBottom: spacing.sm }]}>Icono</Text>
                 <View style={styles.grid}>
                   {['card', 'wallet', 'cash', 'cart', 'pricetag', 'layers', 'albums', 'folder'].map(icon => (
                     <TouchableOpacity
@@ -1214,7 +1122,7 @@ export default function AddExpenseScreen() {
                   ))}
                 </View>
 
-                <Text style={styles.sectionLabel}>Color</Text>
+                <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>Color</Text>
                 <View style={styles.grid}>
                   {COLORS.map(color => (
                     <TouchableOpacity
@@ -1225,12 +1133,12 @@ export default function AddExpenseScreen() {
                   ))}
                 </View>
 
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity style={styles.button} onPress={() => setGroupModalVisible(false)}>
-                    <Text style={styles.buttonText}>Cancelar</Text>
+                <View style={[common.rowBetween, { marginTop: spacing.xl }]}>
+                  <TouchableOpacity style={{ padding: spacing.md }} onPress={() => setGroupModalVisible(false)}>
+                    <Text style={[typography.body, { color: currentTheme.primary }]}>Cancelar</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.button} onPress={handleQuickAddGroup}>
-                    <Text style={styles.buttonText}>Crear</Text>
+                  <TouchableOpacity style={{ padding: spacing.md }} onPress={handleQuickAddGroup}>
+                    <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Crear</Text>
                   </TouchableOpacity>
                 </View>
               </View>

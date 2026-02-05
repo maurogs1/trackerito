@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Modal } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay, parseCurrencyInput, formatCurrencyInput } from '../../../shared/utils/currency';
 import { useNavigation } from '@react-navigation/native';
 import { Category, FinancialType } from '../../expenses/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
-
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -28,13 +27,13 @@ export default function FinancialEducationScreen() {
   const { preferences, categories, expenses, updateCategory } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const common = createCommonStyles(currentTheme);
 
   const [step, setStep] = useState<WizardStep>('intro');
   const [income, setIncome] = useState('');
   const [percentages, setPercentages] = useState<Percentages>(DEFAULT_PERCENTAGES);
   const [isEditingPercentages, setIsEditingPercentages] = useState(false);
-  
-  // Load saved state on mount
+
   useEffect(() => {
     loadEducationState();
   }, []);
@@ -44,7 +43,7 @@ export default function FinancialEducationScreen() {
       const savedStep = await AsyncStorage.getItem('@trackerito_edu_step');
       const savedIncome = await AsyncStorage.getItem('@trackerito_edu_income');
       const savedPercentages = await AsyncStorage.getItem('@trackerito_edu_percentages');
-      
+
       if (savedIncome) setIncome(savedIncome);
       if (savedStep) setStep(savedStep as WizardStep);
       if (savedPercentages) setPercentages(JSON.parse(savedPercentages));
@@ -58,7 +57,7 @@ export default function FinancialEducationScreen() {
       await AsyncStorage.setItem('@trackerito_edu_step', newStep);
       if (newIncome) await AsyncStorage.setItem('@trackerito_edu_income', newIncome);
       if (newPercentages) await AsyncStorage.setItem('@trackerito_edu_percentages', JSON.stringify(newPercentages));
-      
+
       setStep(newStep);
       if (newPercentages) setPercentages(newPercentages);
     } catch (e) {
@@ -71,27 +70,20 @@ export default function FinancialEducationScreen() {
   const idealWants = numericIncome * (percentages.wants / 100);
   const idealSavings = numericIncome * (percentages.savings / 100);
 
-  // Calculate actual spending based on category types
   const actualSpending = useMemo(() => {
     const now = new Date();
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
 
-    const currentMonthExpenses = expenses.filter(e => 
+    const currentMonthExpenses = expenses.filter(e =>
       isWithinInterval(parseISO(e.date), { start: monthStart, end: monthEnd })
     );
 
-    const spending = {
-      needs: 0,
-      wants: 0,
-      savings: 0,
-      unclassified: 0
-    };
+    const spending = { needs: 0, wants: 0, savings: 0, unclassified: 0 };
 
     currentMonthExpenses.forEach(expense => {
-      // Use the expense's specific financial type if available, otherwise fallback to category type
       let type = expense.financialType;
-      
+
       if (!type || type === 'unclassified') {
         const category = categories.find(c => c.name === expense.category);
         type = category?.financialType;
@@ -128,241 +120,16 @@ export default function FinancialEducationScreen() {
     const types: FinancialType[] = ['needs', 'wants', 'savings'];
     const currentIndex = types.indexOf(category.financialType as FinancialType);
     const nextType = types[(currentIndex + 1) % types.length];
-    
     updateCategory({ ...category, financialType: nextType });
   };
 
-  const handleResetPercentages = () => {
-    setPercentages(DEFAULT_PERCENTAGES);
-  };
-
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: currentTheme.background,
-    },
-    content: {
-      padding: 20,
-      paddingBottom: 40,
-    },
-    header: {
-      marginBottom: 24,
-      alignItems: 'center',
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      textAlign: 'center',
-      marginBottom: 8,
-    },
-    subtitle: {
-      fontSize: 16,
-      color: currentTheme.textSecondary,
-      textAlign: 'center',
-      lineHeight: 24,
-    },
-    card: {
-      backgroundColor: currentTheme.card,
-      borderRadius: 20,
-      padding: 20,
-      marginBottom: 20,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    inputLabel: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: currentTheme.textSecondary,
-      marginBottom: 8,
-      textTransform: 'uppercase',
-    },
-    button: {
-      backgroundColor: currentTheme.primary,
-      paddingVertical: 16,
-      borderRadius: 12,
-      alignItems: 'center',
-      marginTop: 20,
-    },
-    buttonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    inputContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderBottomWidth: 2,
-      borderBottomColor: currentTheme.primary,
-      paddingBottom: 8,
-      marginVertical: 24,
-    },
-    currencySymbol: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      marginRight: 8,
-    },
-    input: {
-      flex: 1,
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-    },
-    categoryItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: currentTheme.border,
-    },
-    categoryName: {
-      fontSize: 16,
-      color: currentTheme.text,
-      flex: 1,
-      marginLeft: 12,
-    },
-    typeBadge: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 12,
-      minWidth: 100,
-      alignItems: 'center',
-    },
-    typeText: {
-      fontSize: 12,
-      fontWeight: 'bold',
-      color: '#FFFFFF',
-    },
-    comparisonRow: {
-      marginBottom: 24,
-    },
-    comparisonHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 8,
-    },
-    comparisonTitle: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-    },
-    comparisonValues: {
-      fontSize: 14,
-      color: currentTheme.textSecondary,
-    },
-    barContainer: {
-      height: 24,
-      backgroundColor: currentTheme.border,
-      borderRadius: 12,
-      overflow: 'hidden',
-      flexDirection: 'row',
-    },
-    barFill: {
-      height: '100%',
-      justifyContent: 'center',
-      paddingHorizontal: 8,
-    },
-    barLabel: {
-      fontSize: 10,
-      color: '#FFFFFF',
-      fontWeight: 'bold',
-    },
-    barLabelOutside: {
-      fontSize: 12,
-      color: currentTheme.text,
-      fontWeight: 'bold',
-      marginLeft: 8,
-      alignSelf: 'center',
-    },
-    alertCard: {
-      flexDirection: 'row',
-      backgroundColor: currentTheme.card,
-      padding: 16,
-      borderRadius: 12,
-      marginBottom: 12,
-      alignItems: 'center',
-      borderLeftWidth: 4,
-    },
-    alertText: {
-      flex: 1,
-      marginLeft: 12,
-      color: currentTheme.text,
-      fontSize: 14,
-    },
-    percentageInputContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 16,
-    },
-    percentageLabel: {
-      fontSize: 16,
-      color: currentTheme.text,
-      flex: 1,
-    },
-    percentageInput: {
-      backgroundColor: currentTheme.background,
-      borderRadius: 8,
-      padding: 8,
-      width: 60,
-      textAlign: 'center',
-      color: currentTheme.text,
-      fontWeight: 'bold',
-    },
-    resetButton: {
-      alignSelf: 'center',
-      padding: 10,
-    },
-    resetButtonText: {
-      color: currentTheme.primary,
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    projectionScroll: {
-      marginTop: 16,
-    },
-    projectionCard: {
-      backgroundColor: currentTheme.card,
-      borderRadius: 16,
-      padding: 16,
-      marginRight: 12,
-      width: 160,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: currentTheme.border,
-    },
-    projectionIcon: {
-      marginBottom: 12,
-    },
-    projectionTitle: {
-      fontSize: 14,
-      fontWeight: 'bold',
-      color: currentTheme.text,
-      marginBottom: 4,
-      textAlign: 'center',
-    },
-    projectionMonths: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: currentTheme.primary,
-      marginBottom: 4,
-    },
-    projectionLabel: {
-      fontSize: 12,
-      color: currentTheme.textSecondary,
-    },
-  });
+  const handleResetPercentages = () => setPercentages(DEFAULT_PERCENTAGES);
 
   const getTypeColor = (type?: FinancialType) => {
     switch (type) {
-      case 'needs': return '#4CAF50'; // Green
-      case 'wants': return '#FF9800'; // Orange
-      case 'savings': return '#2196F3'; // Blue
+      case 'needs': return currentTheme.success;
+      case 'wants': return currentTheme.warning;
+      case 'savings': return currentTheme.info;
       default: return currentTheme.textSecondary;
     }
   };
@@ -388,24 +155,130 @@ export default function FinancialEducationScreen() {
             {!isSmall && <Text style={styles.barLabel}>{displayPercentage}%</Text>}
           </View>
         </View>
-        {isSmall && <Text style={styles.barLabelOutside}>{displayPercentage}%</Text>}
+        {isSmall && <Text style={[typography.captionBold, { color: currentTheme.text, marginLeft: spacing.sm }]}>{displayPercentage}%</Text>}
       </View>
     );
   };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: currentTheme.background,
+    },
+    content: {
+      padding: spacing.xl,
+      paddingBottom: 40,
+    },
+    header: {
+      marginBottom: spacing.xxl,
+      alignItems: 'center',
+    },
+    card: {
+      backgroundColor: currentTheme.card,
+      borderRadius: borderRadius.lg + 4,
+      padding: spacing.xl,
+      marginBottom: spacing.xl,
+      ...shadows.md,
+    },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: currentTheme.primary,
+      paddingBottom: spacing.sm,
+      marginVertical: spacing.xxl,
+    },
+    categoryItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: currentTheme.border,
+    },
+    typeBadge: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.md,
+      minWidth: 100,
+      alignItems: 'center',
+    },
+    comparisonRow: {
+      marginBottom: spacing.xxl,
+    },
+    comparisonHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: spacing.sm,
+    },
+    barContainer: {
+      height: 24,
+      backgroundColor: currentTheme.border,
+      borderRadius: borderRadius.md,
+      overflow: 'hidden',
+      flexDirection: 'row',
+    },
+    barFill: {
+      height: '100%',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.sm,
+    },
+    barLabel: {
+      fontSize: 10,
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+    },
+    alertCard: {
+      flexDirection: 'row',
+      backgroundColor: currentTheme.card,
+      padding: spacing.lg,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.md,
+      alignItems: 'center',
+      borderLeftWidth: 4,
+    },
+    percentageInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.lg,
+    },
+    percentageInput: {
+      backgroundColor: currentTheme.background,
+      borderRadius: borderRadius.sm,
+      padding: spacing.sm,
+      width: 60,
+      textAlign: 'center',
+      color: currentTheme.text,
+      fontWeight: 'bold',
+    },
+    projectionCard: {
+      backgroundColor: currentTheme.card,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+      marginRight: spacing.md,
+      width: 160,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+    },
+  });
 
   // Render Steps
   if (step === 'intro') {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={[styles.header, { marginTop: 40 }]}>
-          <Ionicons name="school-outline" size={80} color={currentTheme.primary} style={{ marginBottom: 20 }} />
-          <Text style={styles.title}>Salud Financiera</Text>
-          <Text style={styles.subtitle}>
+          <Ionicons name="school-outline" size={80} color={currentTheme.primary} style={{ marginBottom: spacing.xl }} />
+          <Text style={[typography.title, { color: currentTheme.text, textAlign: 'center', marginBottom: spacing.sm }]}>
+            Salud Financiera
+          </Text>
+          <Text style={[typography.subtitle, { color: currentTheme.textSecondary, textAlign: 'center', lineHeight: 24 }]}>
             Descubre si estás siguiendo la regla 50/30/20 comparando tus gastos reales con lo ideal.
           </Text>
         </View>
-        <TouchableOpacity style={styles.button} onPress={handleStart}>
-          <Text style={styles.buttonText}>Comenzar Análisis</Text>
+        <TouchableOpacity style={common.buttonPrimary} onPress={handleStart}>
+          <Text style={common.buttonPrimaryText}>Comenzar Análisis</Text>
         </TouchableOpacity>
       </ScrollView>
     );
@@ -414,13 +287,17 @@ export default function FinancialEducationScreen() {
   if (step === 'income') {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Tu Ingreso Mensual</Text>
-        <Text style={styles.subtitle}>Para calcular tus porcentajes ideales, necesitamos saber tu ingreso neto mensual.</Text>
-        
+        <Text style={[typography.title, { color: currentTheme.text, textAlign: 'center', marginBottom: spacing.sm }]}>
+          Tu Ingreso Mensual
+        </Text>
+        <Text style={[typography.subtitle, { color: currentTheme.textSecondary, textAlign: 'center' }]}>
+          Para calcular tus porcentajes ideales, necesitamos saber tu ingreso neto mensual.
+        </Text>
+
         <View style={styles.inputContainer}>
-          <Text style={styles.currencySymbol}>$</Text>
+          <Text style={[typography.title, { color: currentTheme.text, marginRight: spacing.sm }]}>$</Text>
           <TextInput
-            style={styles.input}
+            style={[typography.title, { flex: 1, color: currentTheme.text }]}
             placeholder="0"
             placeholderTextColor={currentTheme.textSecondary}
             keyboardType="numeric"
@@ -431,18 +308,18 @@ export default function FinancialEducationScreen() {
         </View>
 
         <View style={styles.card}>
-          <TouchableOpacity 
-            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: isEditingPercentages ? 16 : 0 }}
+          <TouchableOpacity
+            style={[common.rowBetween, { marginBottom: isEditingPercentages ? spacing.lg : 0 }]}
             onPress={() => setIsEditingPercentages(!isEditingPercentages)}
           >
-            <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Configurar Regla (50/30/20)</Text>
+            <Text style={[typography.label, { color: currentTheme.textSecondary }]}>Configurar Regla (50/30/20)</Text>
             <Ionicons name={isEditingPercentages ? "chevron-up" : "chevron-down"} size={20} color={currentTheme.textSecondary} />
           </TouchableOpacity>
 
           {isEditingPercentages && (
             <View>
               <View style={styles.percentageInputContainer}>
-                <Text style={styles.percentageLabel}>Necesidades (%)</Text>
+                <Text style={[typography.body, { color: currentTheme.text }]}>Necesidades (%)</Text>
                 <TextInput
                   style={styles.percentageInput}
                   keyboardType="numeric"
@@ -451,7 +328,7 @@ export default function FinancialEducationScreen() {
                 />
               </View>
               <View style={styles.percentageInputContainer}>
-                <Text style={styles.percentageLabel}>Deseos (%)</Text>
+                <Text style={[typography.body, { color: currentTheme.text }]}>Deseos (%)</Text>
                 <TextInput
                   style={styles.percentageInput}
                   keyboardType="numeric"
@@ -460,7 +337,7 @@ export default function FinancialEducationScreen() {
                 />
               </View>
               <View style={styles.percentageInputContainer}>
-                <Text style={styles.percentageLabel}>Ahorros (%)</Text>
+                <Text style={[typography.body, { color: currentTheme.text }]}>Ahorros (%)</Text>
                 <TextInput
                   style={styles.percentageInput}
                   keyboardType="numeric"
@@ -469,15 +346,15 @@ export default function FinancialEducationScreen() {
                 />
               </View>
 
-              <TouchableOpacity style={styles.resetButton} onPress={handleResetPercentages}>
-                <Text style={styles.resetButtonText}>Reestablecer a 50/30/20</Text>
+              <TouchableOpacity style={{ alignSelf: 'center', padding: spacing.md }} onPress={handleResetPercentages}>
+                <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Reestablecer a 50/30/20</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleIncomeNext}>
-          <Text style={styles.buttonText}>Siguiente</Text>
+        <TouchableOpacity style={common.buttonPrimary} onPress={handleIncomeNext}>
+          <Text style={common.buttonPrimaryText}>Siguiente</Text>
         </TouchableOpacity>
       </ScrollView>
     );
@@ -486,27 +363,27 @@ export default function FinancialEducationScreen() {
   if (step === 'classification') {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Clasifica tus Gastos</Text>
-        <Text style={styles.subtitle}>Toca cada categoría para cambiar su tipo: Necesidad, Deseo o Ahorro.</Text>
-        
-        <View style={{ marginTop: 20 }}>
+        <Text style={[typography.title, { color: currentTheme.text, textAlign: 'center', marginBottom: spacing.sm }]}>
+          Clasifica tus Gastos
+        </Text>
+        <Text style={[typography.subtitle, { color: currentTheme.textSecondary, textAlign: 'center' }]}>
+          Toca cada categoría para cambiar su tipo: Necesidad, Deseo o Ahorro.
+        </Text>
+
+        <View style={{ marginTop: spacing.xl }}>
           {categories.map(category => (
-            <TouchableOpacity 
-              key={category.id} 
-              style={styles.categoryItem}
-              onPress={() => toggleCategoryType(category)}
-            >
+            <TouchableOpacity key={category.id} style={styles.categoryItem} onPress={() => toggleCategoryType(category)}>
               <Ionicons name={category.icon as any} size={24} color={category.color} />
-              <Text style={styles.categoryName}>{category.name}</Text>
+              <Text style={[typography.body, { color: currentTheme.text, flex: 1, marginLeft: spacing.md }]}>{category.name}</Text>
               <View style={[styles.typeBadge, { backgroundColor: getTypeColor(category.financialType) }]}>
-                <Text style={styles.typeText}>{getTypeName(category.financialType)}</Text>
+                <Text style={[typography.captionBold, { color: '#FFFFFF' }]}>{getTypeName(category.financialType)}</Text>
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleClassificationComplete}>
-          <Text style={styles.buttonText}>Ver Resultados</Text>
+        <TouchableOpacity style={[common.buttonPrimary, { marginTop: spacing.xl }]} onPress={handleClassificationComplete}>
+          <Text style={common.buttonPrimaryText}>Ver Resultados</Text>
         </TouchableOpacity>
       </ScrollView>
     );
@@ -523,39 +400,38 @@ export default function FinancialEducationScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.title}>Tu Realidad vs Ideal</Text>
-        <Text style={styles.subtitle}>Basado en tus gastos de este mes</Text>
+        <Text style={[typography.title, { color: currentTheme.text, textAlign: 'center' }]}>Tu Realidad vs Ideal</Text>
+        <Text style={[typography.subtitle, { color: currentTheme.textSecondary, textAlign: 'center' }]}>
+          Basado en tus gastos de este mes
+        </Text>
       </View>
 
       {/* Comparison Bars */}
       <View style={styles.card}>
-        {/* Needs */}
         <View style={styles.comparisonRow}>
           <View style={styles.comparisonHeader}>
-            <Text style={styles.comparisonTitle}>Necesidades ({percentages.needs}%)</Text>
-            <Text style={styles.comparisonValues}>
+            <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Necesidades ({percentages.needs}%)</Text>
+            <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
               ${formatCurrencyDisplay(actualSpending.needs)} / ${formatCurrencyDisplay(idealNeeds)}
             </Text>
           </View>
           {renderProgressBar(actualSpending.needs, idealNeeds, getTypeColor('needs'))}
         </View>
 
-        {/* Wants */}
         <View style={styles.comparisonRow}>
           <View style={styles.comparisonHeader}>
-            <Text style={styles.comparisonTitle}>Deseos ({percentages.wants}%)</Text>
-            <Text style={styles.comparisonValues}>
+            <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Deseos ({percentages.wants}%)</Text>
+            <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
               ${formatCurrencyDisplay(actualSpending.wants)} / ${formatCurrencyDisplay(idealWants)}
             </Text>
           </View>
           {renderProgressBar(actualSpending.wants, idealWants, getTypeColor('wants'))}
         </View>
 
-        {/* Savings */}
         <View style={styles.comparisonRow}>
           <View style={styles.comparisonHeader}>
-            <Text style={styles.comparisonTitle}>Ahorros ({percentages.savings}%)</Text>
-            <Text style={styles.comparisonValues}>
+            <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Ahorros ({percentages.savings}%)</Text>
+            <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
               ${formatCurrencyDisplay(actualSpending.savings)} / ${formatCurrencyDisplay(idealSavings)}
             </Text>
           </View>
@@ -563,46 +439,46 @@ export default function FinancialEducationScreen() {
         </View>
       </View>
 
-      {/* Savings Potential Section */}
-      <View style={{ marginBottom: 24 }}>
-        <Text style={[styles.title, { fontSize: 20, alignSelf: 'flex-start', marginBottom: 12 }]}>
+      {/* Savings Potential */}
+      <View style={{ marginBottom: spacing.xxl }}>
+        <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md }]}>
           El Poder de tu Ahorro
         </Text>
-        <Text style={[styles.subtitle, { textAlign: 'left', marginBottom: 16 }]}>
+        <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.lg }]}>
           Si ahorras ${formatCurrencyDisplay(idealSavings)} al mes, podrías comprar:
         </Text>
-        
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectionScroll}>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {savingsPotential.map((item, index) => {
             const months = Math.ceil(item.cost / Math.max(1, idealSavings));
             return (
               <View key={index} style={styles.projectionCard}>
-                <Ionicons name={item.icon as any} size={32} color={currentTheme.primary} style={styles.projectionIcon} />
-                <Text style={styles.projectionTitle}>{item.name}</Text>
-                <Text style={styles.projectionMonths}>{months} Meses</Text>
-                <Text style={styles.projectionLabel}>de ahorro</Text>
+                <Ionicons name={item.icon as any} size={32} color={currentTheme.primary} style={{ marginBottom: spacing.md }} />
+                <Text style={[typography.bodyBold, { color: currentTheme.text, textAlign: 'center', marginBottom: spacing.xs }]}>{item.name}</Text>
+                <Text style={[typography.sectionTitle, { color: currentTheme.primary }]}>{months} Meses</Text>
+                <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>de ahorro</Text>
               </View>
             );
           })}
         </ScrollView>
       </View>
 
-      {/* Insights / Alerts */}
-      <Text style={[styles.title, { fontSize: 20, alignSelf: 'flex-start', marginBottom: 16 }]}>Análisis</Text>
-      
+      {/* Insights */}
+      <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.lg }]}>Análisis</Text>
+
       {actualSpending.needs > idealNeeds && (
         <View style={[styles.alertCard, { borderLeftColor: currentTheme.error }]}>
           <Ionicons name="warning" size={24} color={currentTheme.error} />
-          <Text style={styles.alertText}>
+          <Text style={[typography.body, { color: currentTheme.text, flex: 1, marginLeft: spacing.md }]}>
             Tus necesidades superan el {percentages.needs}% recomendado. Considera revisar gastos fijos como alquiler o servicios.
           </Text>
         </View>
       )}
 
       {actualSpending.wants > idealWants && (
-        <View style={[styles.alertCard, { borderLeftColor: '#FF9800' }]}>
-          <Ionicons name="alert-circle" size={24} color="#FF9800" />
-          <Text style={styles.alertText}>
+        <View style={[styles.alertCard, { borderLeftColor: currentTheme.warning }]}>
+          <Ionicons name="alert-circle" size={24} color={currentTheme.warning} />
+          <Text style={[typography.body, { color: currentTheme.text, flex: 1, marginLeft: spacing.md }]}>
             Estás gastando más de lo ideal en deseos. Intenta reducir salidas o compras impulsivas.
           </Text>
         </View>
@@ -611,24 +487,21 @@ export default function FinancialEducationScreen() {
       {actualSpending.savings >= idealSavings ? (
         <View style={[styles.alertCard, { borderLeftColor: currentTheme.success }]}>
           <Ionicons name="checkmark-circle" size={24} color={currentTheme.success} />
-          <Text style={styles.alertText}>
+          <Text style={[typography.body, { color: currentTheme.text, flex: 1, marginLeft: spacing.md }]}>
             ¡Excelente! Estás cumpliendo con tu meta de ahorro del {percentages.savings}%.
           </Text>
         </View>
       ) : (
         <View style={[styles.alertCard, { borderLeftColor: currentTheme.primary }]}>
           <Ionicons name="information-circle" size={24} color={currentTheme.primary} />
-          <Text style={styles.alertText}>
+          <Text style={[typography.body, { color: currentTheme.text, flex: 1, marginLeft: spacing.md }]}>
             Aún no llegas al {percentages.savings}% de ahorro. Intenta destinar un poco más a tus metas financieras.
           </Text>
         </View>
       )}
 
-      <TouchableOpacity
-        style={[styles.button, { marginTop: 24 }]}
-        onPress={() => navigation.navigate('Dashboard')}
-      >
-        <Text style={styles.buttonText}>Ver mi Dashboard</Text>
+      <TouchableOpacity style={[common.buttonPrimary, { marginTop: spacing.xxl }]} onPress={() => navigation.navigate('Dashboard')}>
+        <Text style={common.buttonPrimaryText}>Ver mi Dashboard</Text>
       </TouchableOpacity>
     </ScrollView>
   );
