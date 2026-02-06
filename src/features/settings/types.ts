@@ -4,6 +4,8 @@ export interface UserPreferences {
   hideFinancialData?: boolean; // DEPRECADO: usar hideIncome y hideExpenses
   hideIncome: boolean;
   hideExpenses: boolean;
+  lastClosedMonth?: string;    // "2025-01" formato YYYY-MM
+  carryoverAmount?: number;    // Monto arrastrado del mes anterior
 }
 
 export interface UserProfile {

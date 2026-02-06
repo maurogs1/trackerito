@@ -365,25 +365,22 @@ export default function AllExpensesScreen() {
       borderBottomColor: currentTheme.border,
       paddingBottom: spacing.md,
     },
-    filterButtonRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-      marginTop: spacing.xs,
-    },
-    filterButton: {
-      flex: 1,
+    searchRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: currentTheme.background,
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.lg,
-      borderRadius: borderRadius.md,
-      borderWidth: 1,
-      borderColor: currentTheme.border,
       gap: spacing.sm,
     },
-    filterButtonActive: {
+    filterIconButton: {
+      width: 44,
+      height: 44,
+      borderRadius: borderRadius.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: currentTheme.background,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+    },
+    filterIconButtonActive: {
       backgroundColor: currentTheme.primary,
       borderColor: currentTheme.primary,
     },
@@ -394,14 +391,6 @@ export default function AllExpensesScreen() {
       height: 20,
       justifyContent: 'center',
       alignItems: 'center',
-    },
-    clearFiltersButton: {
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.lg,
-      borderRadius: borderRadius.md,
-      borderWidth: 1,
-      borderColor: currentTheme.border,
-      backgroundColor: currentTheme.background,
     },
     activeFiltersSummary: {
       marginTop: spacing.md,
@@ -429,7 +418,6 @@ export default function AllExpensesScreen() {
       backgroundColor: currentTheme.background,
       borderRadius: borderRadius.md,
       paddingHorizontal: spacing.md,
-      marginBottom: spacing.md,
       height: 44,
     },
     filterRow: {
@@ -692,49 +680,39 @@ export default function AllExpensesScreen() {
     <View style={styles.container}>
       {/* Header with Search and Filter Button */}
       <View style={styles.header}>
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={currentTheme.textSecondary} style={{ marginRight: spacing.sm }} />
-          <TextInput
-            style={[typography.body, { flex: 1, color: currentTheme.text }]}
-            placeholder="Buscar gastos..."
-            placeholderTextColor={currentTheme.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={currentTheme.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Search Bar + Filter Icon */}
+        <View style={styles.searchRow}>
+          <View style={[styles.searchContainer, { flex: 1 }]}>
+            <Ionicons name="search" size={20} color={currentTheme.textSecondary} style={{ marginRight: spacing.sm }} />
+            <TextInput
+              style={[typography.body, { flex: 1, color: currentTheme.text }]}
+              placeholder="Buscar gastos..."
+              placeholderTextColor={currentTheme.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={currentTheme.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
 
-        {/* Filter Button */}
-        <View style={styles.filterButtonRow}>
           <TouchableOpacity
-            style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
+            style={[styles.filterIconButton, activeFiltersCount > 0 && styles.filterIconButtonActive]}
             onPress={() => setShowFiltersModal(true)}
           >
             <Ionicons
               name="options-outline"
-              size={20}
+              size={22}
               color={activeFiltersCount > 0 ? '#FFFFFF' : currentTheme.text}
             />
-            <Text style={[typography.bodyBold, { color: activeFiltersCount > 0 ? '#FFFFFF' : currentTheme.text }]}>
-              Filtros
-            </Text>
             {activeFiltersCount > 0 && (
               <View style={styles.filterBadge}>
                 <Text style={[typography.small, { color: currentTheme.primary, fontWeight: '700' }]}>{activeFiltersCount}</Text>
               </View>
             )}
           </TouchableOpacity>
-
-          {activeFiltersCount > 0 && (
-            <TouchableOpacity style={styles.clearFiltersButton} onPress={clearAllFilters}>
-              <Text style={[typography.bodyBold, { color: currentTheme.textSecondary }]}>Limpiar</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Active Filters Summary */}

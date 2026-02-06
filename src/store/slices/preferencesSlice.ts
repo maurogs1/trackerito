@@ -7,6 +7,7 @@ export interface PreferencesSlice {
   toggleHideFinancialData: () => void; // DEPRECADO
   toggleHideIncome: () => void;
   toggleHideExpenses: () => void;
+  closeMonth: (monthKey: string, carryoverAmount: number) => void;
 }
 
 export const createPreferencesSlice: StateCreator<PreferencesSlice> = (set) => ({
@@ -51,6 +52,16 @@ export const createPreferencesSlice: StateCreator<PreferencesSlice> = (set) => (
       preferences: {
         ...state.preferences,
         hideExpenses: !state.preferences.hideExpenses,
+      },
+    }));
+  },
+
+  closeMonth: (monthKey: string, carryoverAmount: number) => {
+    set((state) => ({
+      preferences: {
+        ...state.preferences,
+        lastClosedMonth: monthKey,
+        carryoverAmount,
       },
     }));
   },

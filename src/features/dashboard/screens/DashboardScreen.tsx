@@ -8,9 +8,10 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay } from '../../../shared/utils/currency';
 import { BENEFITS, BANKS, formatBenefitDays } from '../../benefits/mockBenefits';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subMonths, endOfMonth as getEndOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { DashboardSkeleton } from '../../../shared/components/Skeleton';
+import MonthCloseModal from '../components/MonthCloseModal';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -20,9 +21,11 @@ export default function DashboardScreen() {
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const { width } = useWindowDimensions();
   const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1;
-  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, userBanks, getBalance, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses } = useStore();
+  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, userBanks, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense } = useStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showMonthCloseModal, setShowMonthCloseModal] = useState(false);
+  const [previousMonthBalance, setPreviousMonthBalance] = useState(0);
   const summary = getSummary();
   const balance = getBalance();
   const isDark = preferences.theme === 'dark';
@@ -56,6 +59,41 @@ export default function DashboardScreen() {
     loadData();
   }, []);
 
+  // Detectar si hay un mes sin cerrar
+  useEffect(() => {
+    if (isLoading) return;
+
+    const now = new Date();
+    const currentMonthKey = format(now, 'yyyy-MM');
+
+    // Si ya cerramos este mes, no mostrar modal
+    if (preferences.lastClosedMonth === currentMonthKey) return;
+
+    // Calcular el saldo del mes anterior
+    const prevMonth = subMonths(now, 1);
+    const prevMonthIncome = getMonthlyIncomeBreakdown(prevMonth);
+    const allExpenses = getCurrentExpenses();
+    const prevMonthExpenses = allExpenses.filter((e: any) => {
+      const expDate = new Date(e.date);
+      return expDate.getMonth() === prevMonth.getMonth() &&
+             expDate.getFullYear() === prevMonth.getFullYear();
+    });
+    const totalPrevExpenses = prevMonthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+
+    // Solo incluir el carryover anterior si existía
+    const prevCarryover = preferences.carryoverAmount || 0;
+    const remaining = prevMonthIncome.total + prevCarryover - totalPrevExpenses;
+
+    // Solo mostrar si hay ingresos configurados (usuario usa la feature de ingresos)
+    if (prevMonthIncome.total > 0) {
+      setPreviousMonthBalance(remaining);
+      setShowMonthCloseModal(true);
+    } else {
+      // Si no tiene ingresos, cerrar automáticamente
+      closeMonth(currentMonthKey, 0);
+    }
+  }, [isLoading]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
@@ -66,6 +104,49 @@ export default function DashboardScreen() {
     ]);
     setRefreshing(false);
   }, []);
+
+  // Nombre del mes anterior para el modal
+  const previousMonthName = format(subMonths(new Date(), 1), 'MMMM', { locale: es });
+
+  // Handlers del modal de cierre de mes
+  const handleCarryOver = (amount: number) => {
+    const currentMonthKey = format(new Date(), 'yyyy-MM');
+    closeMonth(currentMonthKey, amount);
+    setShowMonthCloseModal(false);
+  };
+
+  const handleRegisterAsExpense = async (expenseAmount: number, carryoverAmount: number) => {
+    const currentMonthKey = format(new Date(), 'yyyy-MM');
+
+    // Crear un gasto de ajuste en el último día del mes anterior
+    if (expenseAmount > 0) {
+      const prevMonth = subMonths(new Date(), 1);
+      const lastDay = getEndOfMonth(prevMonth);
+
+      try {
+        await addExpense({
+          amount: expenseAmount,
+          description: 'Ajuste - gastos no registrados',
+          date: format(lastDay, 'yyyy-MM-dd'),
+          paymentMethod: 'cash',
+          paymentStatus: 'paid',
+          financialType: 'needs',
+          categoryIds: [],
+        });
+      } catch (e) {
+        console.error('Error creando gasto de ajuste:', e);
+      }
+    }
+
+    closeMonth(currentMonthKey, carryoverAmount);
+    setShowMonthCloseModal(false);
+  };
+
+  const handleStartFresh = () => {
+    const currentMonthKey = format(new Date(), 'yyyy-MM');
+    closeMonth(currentMonthKey, 0);
+    setShowMonthCloseModal(false);
+  };
 
   const topCategory = useMemo(() => {
     const categoryTotals: Record<string, number> = {};
@@ -352,7 +433,21 @@ export default function DashboardScreen() {
               <View style={{ flexDirection: 'row', marginTop: spacing.lg, gap: spacing.lg, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <View style={{ alignItems: 'center', minWidth: 70 }}>
                   <Text style={[typography.small, { color: 'rgba(255,255,255,0.7)' }]}>Ingresos</Text>
-                  <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>{displayIncome(balance.totalIncome)}</Text>
+                  <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>{displayIncome(balance.confirmedIncome)}</Text>
+                  {balance.pendingIncome > 0 && !hideIncome && (
+                    <View style={{ backgroundColor: 'rgba(255,213,79,0.3)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginTop: 2 }}>
+                      <Text style={[typography.small, { color: '#FFD54F', fontSize: 10 }]}>
+                        +${formatCurrencyDisplay(balance.pendingIncome)} pendiente
+                      </Text>
+                    </View>
+                  )}
+                  {balance.carryover > 0 && !hideIncome && (
+                    <View style={{ backgroundColor: 'rgba(129,199,132,0.3)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginTop: 2 }}>
+                      <Text style={[typography.small, { color: '#81C784', fontSize: 10 }]}>
+                        +${formatCurrencyDisplay(balance.carryover)} anterior
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <View style={{ alignItems: 'center', minWidth: 70 }}>
                   <Text style={[typography.small, { color: 'rgba(255,255,255,0.7)' }]}>Gastado</Text>
@@ -659,6 +754,17 @@ export default function DashboardScreen() {
       <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('AddExpense')}>
         <Ionicons name="add" size={32} color="#FFFFFF" />
       </TouchableOpacity>
+
+      {/* Modal de cierre de mes */}
+      <MonthCloseModal
+        visible={showMonthCloseModal}
+        isDark={isDark}
+        remainingBalance={previousMonthBalance}
+        previousMonthName={previousMonthName}
+        onCarryOver={handleCarryOver}
+        onRegisterAsExpense={handleRegisterAsExpense}
+        onStartFresh={handleStartFresh}
+      />
     </View>
   );
 }

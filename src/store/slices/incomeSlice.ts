@@ -3,6 +3,12 @@ import { Income } from '../../features/income/types';
 import { getUserFriendlyMessage, logError } from '../../shared/utils/errorHandler';
 import { startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 
+export interface MonthlyIncomeBreakdown {
+  confirmed: number;
+  pending: number;
+  total: number;
+}
+
 export interface IncomeSlice {
   incomes: Income[];
   isLoadingIncomes: boolean;
@@ -12,9 +18,13 @@ export interface IncomeSlice {
   updateIncome: (id: string, income: Partial<Omit<Income, 'id' | 'createdAt' | 'updatedAt'>>) => Promise<void>;
   removeIncome: (id: string) => Promise<void>;
   getMonthlyIncome: (month?: Date) => number;
+  getMonthlyIncomeBreakdown: (month?: Date) => MonthlyIncomeBreakdown;
   getRecurringIncomes: () => Income[];
   getBalance: () => {
     totalIncome: number;
+    confirmedIncome: number;
+    pendingIncome: number;
+    carryover: number;
     totalExpenses: number;
     balance: number;
     availableDaily: number;
@@ -62,6 +72,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
         date: inc.date,
         isRecurring: inc.is_recurring,
         recurringDay: inc.recurring_day,
+        recurringFrequency: inc.recurring_frequency || 'monthly',
         createdAt: inc.created_at,
         updatedAt: inc.updated_at,
       }));
@@ -93,6 +104,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
           date: incomeData.date,
           is_recurring: incomeData.isRecurring,
           recurring_day: incomeData.recurringDay,
+          recurring_frequency: incomeData.recurringFrequency || 'monthly',
         }])
         .select()
         .single();
@@ -110,6 +122,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
         date: data.date,
         isRecurring: data.is_recurring,
         recurringDay: data.recurring_day,
+        recurringFrequency: data.recurring_frequency || 'monthly',
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };
@@ -133,6 +146,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
       if (incomeData.date !== undefined) updateData.date = incomeData.date;
       if (incomeData.isRecurring !== undefined) updateData.is_recurring = incomeData.isRecurring;
       if (incomeData.recurringDay !== undefined) updateData.recurring_day = incomeData.recurringDay;
+      if (incomeData.recurringFrequency !== undefined) updateData.recurring_frequency = incomeData.recurringFrequency;
 
       const { error } = await supabase
         .from('incomes')
@@ -180,28 +194,68 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
     }
   },
 
-  getMonthlyIncome: (month = new Date()) => {
+  getMonthlyIncomeBreakdown: (month = new Date()) => {
     const { incomes } = get();
-    const start = startOfMonth(month);
-    const end = endOfMonth(month);
+    const now = new Date();
+    const today = now.getDate();
+    const isCurrentMonth = isSameMonth(month, now);
+    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
 
-    // Ingresos de este mes (no recurrentes o registrados en este mes)
-    let total = 0;
+    let confirmed = 0;
+    let pending = 0;
 
     incomes.forEach((inc) => {
       const incomeDate = new Date(inc.date);
 
       if (inc.isRecurring) {
-        // Para ingresos recurrentes, contar si aplica a este mes
-        // (asumimos que se cobran todos los meses)
-        total += inc.amount;
+        const recurringDay = inc.recurringDay || 1;
+        const frequency = inc.recurringFrequency || 'monthly';
+
+        if (frequency === 'monthly') {
+          // Mensual: 1 cobro en el mes
+          if (isCurrentMonth && today < recurringDay) {
+            pending += inc.amount;
+          } else {
+            confirmed += inc.amount;
+          }
+        } else if (frequency === 'biweekly') {
+          // Quincenal: 2 cobros - día X y día X+15
+          const secondDay = recurringDay + 15 > daysInMonth
+            ? recurringDay + 15 - daysInMonth
+            : recurringDay + 15;
+          const days = [recurringDay, secondDay].sort((a, b) => a - b);
+
+          days.forEach((day) => {
+            if (isCurrentMonth && today < day) {
+              pending += inc.amount;
+            } else {
+              confirmed += inc.amount;
+            }
+          });
+        } else if (frequency === 'weekly') {
+          // Semanal: cobros cada 7 días desde recurringDay
+          let day = recurringDay;
+          while (day <= daysInMonth) {
+            if (isCurrentMonth && today < day) {
+              pending += inc.amount;
+            } else {
+              confirmed += inc.amount;
+            }
+            day += 7;
+          }
+        }
       } else if (isSameMonth(incomeDate, month)) {
-        // Para ingresos únicos, solo si están en el mes
-        total += inc.amount;
+        // Para ingresos únicos, solo si están en el mes → siempre confirmado
+        confirmed += inc.amount;
       }
     });
 
-    return total;
+    return { confirmed, pending, total: confirmed + pending };
+  },
+
+  getMonthlyIncome: (month = new Date()) => {
+    // Mantener compatibilidad: retorna el total (confirmed + pending)
+    return get().getMonthlyIncomeBreakdown(month).total;
   },
 
   getRecurringIncomes: () => {
@@ -216,8 +270,16 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
     const currentYear = now.getFullYear();
     const today = now.getDate();
 
-    // Total de ingresos del mes
-    const totalIncome = get().getMonthlyIncome(now);
+    // Breakdown de ingresos del mes (confirmados vs pendientes)
+    const incomeBreakdown = get().getMonthlyIncomeBreakdown(now);
+    const confirmedIncome = incomeBreakdown.confirmed;
+    const pendingIncome = incomeBreakdown.pending;
+
+    // Carryover del mes anterior (desde preferencias)
+    const carryover = (state.preferences?.carryoverAmount) || 0;
+
+    // Total de ingresos = confirmados + carryover
+    const totalIncome = confirmedIncome + carryover;
 
     // Total de gastos del mes (usar getCurrentExpenses si existe)
     const currentExpenses = state.getCurrentExpenses?.() || state.expenses || [];
@@ -250,7 +312,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
       }
     });
 
-    // Balance bruto (sin considerar pendientes)
+    // Balance bruto (sin considerar pendientes de servicios)
     const grossBalance = totalIncome - totalExpenses;
 
     // Balance real disponible (restando lo que falta pagar)
@@ -265,10 +327,12 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
 
     return {
       totalIncome,
+      confirmedIncome,
+      pendingIncome,
+      carryover,
       totalExpenses,
       balance,
       availableDaily,
-      // Nuevos campos para más detalle
       grossBalance,
       pendingRecurring,
       paidRecurring,

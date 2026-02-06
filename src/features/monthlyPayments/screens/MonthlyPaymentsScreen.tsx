@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, TouchableWithoutFeedback, Platform } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
-import { formatCurrencyDisplay } from '../../../shared/utils/currency';
+import { formatCurrencyDisplay, parseCurrencyInput, formatCurrencyInput } from '../../../shared/utils/currency';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { RecurringService } from '../types';
@@ -26,6 +26,9 @@ export default function MonthlyPaymentsScreen() {
     markServiceAsPaid,
     unmarkServicePayment,
     addExpense,
+    updateRecurringService,
+    deleteRecurringService,
+    categories,
   } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
@@ -35,6 +38,16 @@ export default function MonthlyPaymentsScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingService, setEditingService] = useState<RecurringService | null>(null);
+  const [serviceName, setServiceName] = useState('');
+  const [serviceAmount, setServiceAmount] = useState('');
+  const [serviceDay, setServiceDay] = useState('15');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const INITIAL_CATEGORY_COUNT = 6;
 
   useEffect(() => {
     loadRecurringServices();
@@ -47,6 +60,85 @@ export default function MonthlyPaymentsScreen() {
     setCurrentDate(newDate);
   };
 
+  // ---- Edit handlers ----
+  const resetEditForm = () => {
+    setServiceName('');
+    setServiceAmount('');
+    setServiceDay('15');
+    setSelectedCategoryId(undefined);
+    setEditingService(null);
+    setShowAllCategories(false);
+  };
+
+  const handleEditService = (service: RecurringService) => {
+    setEditingService(service);
+    setServiceName(service.name);
+    setServiceAmount(formatCurrencyInput(service.estimated_amount.toString()));
+    setServiceDay(service.day_of_month.toString());
+    setSelectedCategoryId(service.category_id);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingService) return;
+    if (!serviceName.trim() || !serviceAmount.trim() || !serviceDay.trim()) {
+      Alert.alert('Error', 'Por favor completa todos los campos');
+      return;
+    }
+
+    const amount = parseCurrencyInput(serviceAmount);
+    const day = parseInt(serviceDay);
+
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Error', 'El monto debe ser mayor a 0');
+      return;
+    }
+
+    if (day < 1 || day > 31) {
+      Alert.alert('Error', 'El día debe estar entre 1 y 31');
+      return;
+    }
+
+    try {
+      await updateRecurringService(editingService.id, {
+        name: serviceName,
+        estimated_amount: amount,
+        day_of_month: day,
+        category_id: selectedCategoryId,
+        icon: editingService.icon,
+        color: editingService.color,
+        is_active: editingService.is_active,
+      });
+      showSuccess(`"${serviceName}" actualizado`);
+      setShowEditModal(false);
+      resetEditForm();
+      loadRecurringServices();
+    } catch (error) {
+      showError('Error al actualizar');
+    }
+  };
+
+  // ---- Delete handler ----
+  const handleDeleteService = (service: RecurringService) => {
+    Alert.alert(
+      'Eliminar Gasto Fijo',
+      `¿Estás seguro de que quieres eliminar "${service.name}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteRecurringService(service.id);
+            showSuccess(`"${service.name}" eliminado`);
+            loadRecurringServices();
+          }
+        },
+      ]
+    );
+  };
+
+  // ---- Payment handlers ----
   const handleMarkAsPaid = async (service: RecurringService) => {
     const amount = service.estimated_amount;
     const message = `¿Marcar "${service.name}" como pagado?\n\nMonto: $${formatCurrencyDisplay(amount)}`;
@@ -189,6 +281,41 @@ export default function MonthlyPaymentsScreen() {
       alignItems: 'center',
       marginRight: spacing.md,
     },
+    fab: {
+      position: 'absolute',
+      right: spacing.xl,
+      bottom: 30,
+      backgroundColor: currentTheme.primary,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...shadows.lg,
+      shadowColor: currentTheme.primary,
+      shadowOpacity: 0.4,
+    },
+    categorySelector: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    categoryChip: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.lg,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: currentTheme.surface,
+    },
+    categoryChipSelected: {
+      backgroundColor: currentTheme.primary,
+      borderColor: currentTheme.primary,
+    },
   });
 
   return (
@@ -234,33 +361,15 @@ export default function MonthlyPaymentsScreen() {
         </View>
 
         {/* Lista de Gastos Fijos */}
-        <View style={[common.rowBetween, { marginBottom: spacing.md }]}>
-          <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Mis Gastos Fijos</Text>
-          <TouchableOpacity
-            style={common.row}
-            onPress={() => navigation.navigate('RecurringServices')}
-          >
-            <Ionicons name="settings-outline" size={18} color={currentTheme.primary} />
-            <Text style={[typography.bodyBold, { color: currentTheme.primary, marginLeft: spacing.xs }]}>Gestionar</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.md }]}>Mis Gastos Fijos</Text>
 
         {recurringServices.length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="flash-outline" size={48} color={currentTheme.textSecondary} style={{ marginBottom: spacing.md }} />
-            <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.lg }]}>
+            <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center' }]}>
               No tienes gastos fijos configurados.{'\n'}
-              Agrega alquiler, servicios, suscripciones, etc.
+              Usa el botón + para agregar.
             </Text>
-            <TouchableOpacity
-              style={common.buttonPrimary}
-              onPress={() => navigation.navigate('RecurringServices')}
-            >
-              <View style={common.row}>
-                <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
-                <Text style={[common.buttonPrimaryText, { marginLeft: spacing.sm }]}>Agregar Gasto Fijo</Text>
-              </View>
-            </TouchableOpacity>
           </View>
         ) : (
           recurringServices.map(service => {
@@ -268,7 +377,12 @@ export default function MonthlyPaymentsScreen() {
             const isPaid = payment?.status === 'paid';
 
             return (
-              <View key={service.id} style={styles.serviceCard}>
+              <TouchableOpacity
+                key={service.id}
+                style={styles.serviceCard}
+                onPress={() => handleEditService(service)}
+                activeOpacity={0.7}
+              >
                 <View style={common.row}>
                   <View style={[styles.iconContainer, { backgroundColor: service.color }]}>
                     <Ionicons name={service.icon as any} size={22} color="#FFFFFF" />
@@ -280,26 +394,141 @@ export default function MonthlyPaymentsScreen() {
                     </Text>
                   </View>
                   {isPaid ? (
-                    <TouchableOpacity style={styles.paidBadge} onPress={() => handleUnmarkPayment(service)} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.paidBadge} onPress={(e) => { e.stopPropagation(); handleUnmarkPayment(service); }} activeOpacity={0.7}>
                       <Ionicons name="checkmark-circle" size={16} color={currentTheme.success} />
                       <Text style={[typography.caption, { color: currentTheme.success, marginLeft: spacing.xs, fontWeight: '600' }]}>
                         Pagado
                       </Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity style={styles.payButton} onPress={() => handleMarkAsPaid(service)}>
+                    <TouchableOpacity style={styles.payButton} onPress={(e) => { e.stopPropagation(); handleMarkAsPaid(service); }}>
                       <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
                       <Text style={[typography.caption, { color: '#FFFFFF', fontWeight: '600' }]}>Pagar</Text>
                     </TouchableOpacity>
                   )}
+                 
                 </View>
-              </View>
+                <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation(); handleDeleteService(service); }}
+                    style={{ position: 'absolute', right: -5, top: -9 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close" size={20} color={currentTheme.error} />
+                  </TouchableOpacity>
+              </TouchableOpacity>
             );
           })
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 80 }} />
       </ScrollView>
+
+      {/* FAB */}
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('RecurringServices')}>
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* Modal para editar gasto fijo */}
+      <Modal visible={showEditModal} transparent animationType="fade">
+        <TouchableWithoutFeedback onPress={() => { setShowEditModal(false); resetEditForm(); }}>
+          <View style={common.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <ScrollView style={common.modalContent}>
+                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.xl }]}>
+                  Editar Gasto Fijo
+                </Text>
+
+                <Text style={[typography.label, { color: currentTheme.text, marginBottom: spacing.sm }]}>Nombre *</Text>
+                <TextInput
+                  style={common.input}
+                  value={serviceName}
+                  onChangeText={setServiceName}
+                  placeholder="Nombre del gasto"
+                  placeholderTextColor={currentTheme.textSecondary}
+                />
+
+                <Text style={[typography.label, { color: currentTheme.text, marginBottom: spacing.sm, marginTop: spacing.lg }]}>Monto Estimado *</Text>
+                <TextInput
+                  style={common.input}
+                  value={serviceAmount}
+                  onChangeText={(text) => setServiceAmount(formatCurrencyInput(text))}
+                  placeholder="0,00"
+                  placeholderTextColor={currentTheme.textSecondary}
+                  keyboardType="numeric"
+                />
+
+                <Text style={[typography.label, { color: currentTheme.text, marginBottom: spacing.sm, marginTop: spacing.lg }]}>Día del Mes *</Text>
+                <TextInput
+                  style={common.input}
+                  value={serviceDay}
+                  onChangeText={(text) => {
+                    const num = parseInt(text);
+                    if (text === '' || (!isNaN(num) && num >= 1 && num <= 31)) {
+                      setServiceDay(text);
+                    }
+                  }}
+                  placeholder="15"
+                  placeholderTextColor={currentTheme.textSecondary}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                />
+
+                <Text style={[typography.label, { color: currentTheme.text, marginTop: spacing.lg }]}>Categoría (Opcional)</Text>
+
+                <View style={styles.categorySelector}>
+                  {(() => {
+                    const displayedCategories = showAllCategories
+                      ? categories
+                      : categories.slice(0, INITIAL_CATEGORY_COUNT);
+
+                    return (
+                      <>
+                        {displayedCategories.map(cat => (
+                          <TouchableOpacity
+                            key={cat.id}
+                            style={[styles.categoryChip, selectedCategoryId === cat.id && styles.categoryChipSelected]}
+                            onPress={() => setSelectedCategoryId(selectedCategoryId === cat.id ? undefined : cat.id)}
+                          >
+                            <Ionicons
+                              name={cat.icon as any}
+                              size={16}
+                              color={selectedCategoryId === cat.id ? '#FFFFFF' : cat.color}
+                            />
+                            <Text style={[typography.caption, { color: selectedCategoryId === cat.id ? '#FFFFFF' : currentTheme.text, fontWeight: selectedCategoryId === cat.id ? '600' : 'normal' }]}>
+                              {cat.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+
+                        {categories.length > INITIAL_CATEGORY_COUNT && (
+                          <TouchableOpacity
+                            style={styles.categoryChip}
+                            onPress={() => setShowAllCategories(!showAllCategories)}
+                          >
+                            <Ionicons name={showAllCategories ? "chevron-up" : "chevron-down"} size={16} color={currentTheme.textSecondary} />
+                            <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
+                              {showAllCategories ? 'Menos' : `+${categories.length - INITIAL_CATEGORY_COUNT}`}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    );
+                  })()}
+                </View>
+
+                <View style={[common.rowBetween, { marginTop: spacing.xxl }]}>
+                  <TouchableOpacity style={{ padding: spacing.md }} onPress={() => { setShowEditModal(false); resetEditForm(); }}>
+                    <Text style={[typography.body, { color: currentTheme.textSecondary }]}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={common.buttonPrimary} onPress={handleSaveEdit}>
+                    <Text style={common.buttonPrimaryText}>Guardar</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }

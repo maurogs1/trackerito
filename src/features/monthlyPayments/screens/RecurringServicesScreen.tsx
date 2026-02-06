@@ -108,21 +108,22 @@ export default function RecurringServicesScreen() {
     const service = selectedPredefinedService;
 
     if (editingService) {
-      const updatedService = await updateRecurringService(editingService.id, {
-        name: serviceName,
-        estimated_amount: amount,
-        day_of_month: day,
-        category_id: selectedCategoryId,
-        icon: editingService.icon,
-        color: editingService.color,
-        is_active: editingService.is_active,
-      });
-
-      if (updatedService) {
+      try {
+        await updateRecurringService(editingService.id, {
+          name: serviceName,
+          estimated_amount: amount,
+          day_of_month: day,
+          category_id: selectedCategoryId,
+          icon: editingService.icon,
+          color: editingService.color,
+          is_active: editingService.is_active,
+        });
         showSuccess(`"${serviceName}" actualizado correctamente`);
         setShowAddModal(false);
         resetForm();
         loadRecurringServices();
+      } catch (error) {
+        showError('Error al actualizar');
       }
     } else {
       const newService = await addRecurringService({
@@ -315,41 +316,8 @@ export default function RecurringServicesScreen() {
           />
         </View>
 
-        {/* Gastos Fijos Configurados */}
-        {recurringServices.length > 0 && (
-          <>
-            <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md }]}>
-              Mis Gastos Fijos
-            </Text>
-            {recurringServices.map(service => (
-              <TouchableOpacity
-                key={service.id}
-                style={styles.serviceCard}
-                onPress={() => handleEditService(service)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.iconContainer, { backgroundColor: service.color }]}>
-                  <Ionicons name={service.icon as any} size={20} color="#FFFFFF" />
-                </View>
-                <View style={styles.serviceInfo}>
-                  <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{service.name}</Text>
-                  <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
-                    {formatCurrencyDisplay(service.estimated_amount)} - Día {service.day_of_month} de cada mes
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={(e) => { e.stopPropagation(); handleDeleteService(service.id, service.name); }}
-                  style={{ padding: spacing.sm }}
-                >
-                  <Ionicons name="trash-outline" size={20} color={currentTheme.error} />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
-
         {/* Gastos Fijos Predefinidos */}
-        <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, marginTop: spacing.lg }]}>
+        <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md }]}>
           {searchQuery ? `Resultados (${filteredServices.length})` : 'Agregar Gasto Fijo'}
         </Text>
 

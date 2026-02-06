@@ -15,7 +15,7 @@ import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay, formatCurrencyInput, parseCurrencyInput } from '../../../shared/utils/currency';
-import { Income, IncomeType, INCOME_TYPE_LABELS, INCOME_TYPE_ICONS, INCOME_TYPE_COLORS } from '../types';
+import { Income, IncomeType, RecurringFrequency, INCOME_TYPE_LABELS, INCOME_TYPE_ICONS, INCOME_TYPE_COLORS, FREQUENCY_LABELS, FREQUENCY_DESCRIPTIONS } from '../types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -47,6 +47,7 @@ export default function IncomeScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringDay, setRecurringDay] = useState('1');
+  const [recurringFrequency, setRecurringFrequency] = useState<RecurringFrequency>('monthly');
 
   const balance = getBalance();
   const monthlyIncome = getMonthlyIncome();
@@ -62,6 +63,7 @@ export default function IncomeScreen() {
     setDate(new Date());
     setIsRecurring(false);
     setRecurringDay('1');
+    setRecurringFrequency('monthly');
     setEditingIncome(null);
   };
 
@@ -78,6 +80,7 @@ export default function IncomeScreen() {
     setDate(new Date(income.date));
     setIsRecurring(income.isRecurring);
     setRecurringDay(income.recurringDay?.toString() || '1');
+    setRecurringFrequency(income.recurringFrequency || 'monthly');
     setShowModal(true);
   };
 
@@ -101,6 +104,7 @@ export default function IncomeScreen() {
           date: format(date, 'yyyy-MM-dd'),
           isRecurring,
           recurringDay: isRecurring ? parseInt(recurringDay) : undefined,
+          recurringFrequency: isRecurring ? recurringFrequency : undefined,
         });
         showSuccess('Ingreso actualizado');
       } else {
@@ -111,6 +115,7 @@ export default function IncomeScreen() {
           date: format(date, 'yyyy-MM-dd'),
           isRecurring,
           recurringDay: isRecurring ? parseInt(recurringDay) : undefined,
+          recurringFrequency: isRecurring ? recurringFrequency : undefined,
         });
         showSuccess('Ingreso agregado');
       }
@@ -297,7 +302,12 @@ export default function IncomeScreen() {
                     </Text>
                     <View style={styles.recurringBadge}>
                       <Text style={[typography.small, { color: currentTheme.primary, fontWeight: '600' }]}>
-                        Día {income.recurringDay} de cada mes
+                        {income.recurringFrequency === 'weekly'
+                          ? `Semanal desde día ${income.recurringDay}`
+                          : income.recurringFrequency === 'biweekly'
+                          ? `Quincenal - Día ${income.recurringDay}`
+                          : `Día ${income.recurringDay} de cada mes`
+                        }
                       </Text>
                     </View>
                   </View>
@@ -451,7 +461,30 @@ export default function IncomeScreen() {
               {isRecurring && (
                 <>
                   <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
-                    Día del mes que se cobra
+                    Frecuencia
+                  </Text>
+                  <View style={[styles.typeContainer, { marginBottom: spacing.lg }]}>
+                    {(Object.keys(FREQUENCY_LABELS) as RecurringFrequency[]).map((freq) => (
+                      <TouchableOpacity
+                        key={freq}
+                        style={[
+                          styles.typeButton,
+                          recurringFrequency === freq && [
+                            styles.typeButtonSelected,
+                            { borderColor: currentTheme.success, backgroundColor: currentTheme.success + '20' },
+                          ],
+                        ]}
+                        onPress={() => setRecurringFrequency(freq)}
+                      >
+                        <Text style={[typography.body, { color: recurringFrequency === freq ? currentTheme.success : currentTheme.text }]}>
+                          {FREQUENCY_LABELS[freq]}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
+                    {recurringFrequency === 'weekly' ? 'Día del mes del primer cobro' : 'Día del mes que se cobra'}
                   </Text>
                   <TextInput
                     style={common.input}
@@ -461,6 +494,11 @@ export default function IncomeScreen() {
                     value={recurringDay}
                     onChangeText={setRecurringDay}
                   />
+                  <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: spacing.xs }]}>
+                    {recurringFrequency === 'monthly' && `Se cobra 1 vez al mes (día ${recurringDay || '?'})`}
+                    {recurringFrequency === 'biweekly' && `Se cobra 2 veces al mes (día ${recurringDay || '?'} y ${parseInt(recurringDay || '1') + 15 > 31 ? parseInt(recurringDay || '1') + 15 - 31 : parseInt(recurringDay || '1') + 15})`}
+                    {recurringFrequency === 'weekly' && `Se cobra cada 7 días desde el día ${recurringDay || '?'}`}
+                  </Text>
                 </>
               )}
 
