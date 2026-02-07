@@ -15,6 +15,7 @@ import BanksScreen from '../features/banks/screens/BanksScreen';
 import BankDetailScreen from '../features/banks/screens/BankDetailScreen';
 import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
 import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
+import AddRecurringServiceScreen from '../features/monthlyPayments/screens/AddRecurringServiceScreen';
 import PaymentGroupsScreen from '../features/monthlyPayments/screens/PaymentGroupsScreen';
 import IncomeScreen from '../features/income/screens/IncomeScreen';
 import { StatusBar } from 'expo-status-bar';
@@ -34,6 +35,7 @@ export type RootStackParamList = {
   BankDetail: { bankId: string; bankName: string };
   MonthlyPayments: undefined;
   RecurringServices: undefined;
+  AddRecurringService: { serviceId?: string; prefilledName?: string; prefilledIcon?: string; prefilledColor?: string; prefilledAmount?: number; prefilledDay?: number } | undefined;
   PaymentGroups: undefined;
   Income: undefined;
 };
@@ -172,6 +174,7 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
             <Stack.Screen name="BankDetail" component={BankDetailScreen} options={{ title: 'Detalle del Banco' }} />
             <Stack.Screen name="MonthlyPayments" component={MonthlyPaymentsScreen} options={{ title: 'Pagos del Mes' }} />
             <Stack.Screen name="RecurringServices" component={RecurringServicesScreen} options={{ title: 'Gastos Fijos' }} />
+            <Stack.Screen name="AddRecurringService" component={AddRecurringServiceScreen} options={{ title: 'Agregar Gasto Fijo' }} />
             <Stack.Screen name="PaymentGroups" component={PaymentGroupsScreen} options={{ title: 'Grupos de Pago' }} />
             <Stack.Screen name="Income" component={IncomeScreen} options={{ title: 'Mis Ingresos' }} />
           </>

@@ -218,10 +218,10 @@ export const createRecurringServicesSlice: StateCreator<RecurringServicesSlice> 
     try {
       const { supabase } = await import('../../services/supabase');
       
-      // Soft delete - marcar como inactivo
+      // Hard delete - eliminar permanentemente
       const { error } = await supabase
         .from('recurring_services')
-        .update({ is_active: false })
+        .delete()
         .eq('id', id);
 
       if (error) throw error;

@@ -10,6 +10,7 @@ import {
   Alert,
   RefreshControl,
   Platform,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
@@ -20,6 +21,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useToast } from '../../../shared/hooks/useToast';
+import { SwipeableRow } from '../../../shared/components/SwipeableRow';
 
 export default function IncomeScreen() {
   const {
@@ -40,6 +42,8 @@ export default function IncomeScreen() {
 
   const [showModal, setShowModal] = useState(false);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [incomeToDelete, setIncomeToDelete] = useState<Income | null>(null);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [selectedType, setSelectedType] = useState<IncomeType>('salary');
@@ -127,25 +131,20 @@ export default function IncomeScreen() {
   };
 
   const handleDelete = (income: Income) => {
-    Alert.alert(
-      'Eliminar Ingreso',
-      `¿Eliminar "${income.description}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeIncome(income.id);
-              showSuccess('Ingreso eliminado');
-            } catch (error: any) {
-              showError(error.message || 'Error al eliminar');
-            }
-          },
-        },
-      ]
-    );
+    setIncomeToDelete(income);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!incomeToDelete) return;
+    try {
+      await removeIncome(incomeToDelete.id);
+      showSuccess('Ingreso eliminado');
+    } catch (error: any) {
+      showError(error.message || 'Error al eliminar');
+    }
+    setShowDeleteModal(false);
+    setIncomeToDelete(null);
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
@@ -243,6 +242,35 @@ export default function IncomeScreen() {
       justifyContent: 'space-between',
       paddingVertical: spacing.md,
     },
+    deleteModalContent: {
+      backgroundColor: currentTheme.card,
+      borderRadius: borderRadius.lg,
+      padding: spacing.xxl,
+      width: '85%',
+      maxWidth: 400,
+      alignItems: 'center',
+    },
+    deleteModalButtons: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      width: '100%',
+    },
+    deleteModalButton: {
+      flex: 1,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    deleteModalButtonCancel: {
+      backgroundColor: currentTheme.surface,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+    },
+    deleteModalButtonConfirm: {
+      backgroundColor: currentTheme.error,
+    },
   });
 
   return (
@@ -282,39 +310,39 @@ export default function IncomeScreen() {
             {incomes
               .filter(i => i.isRecurring)
               .map((income) => (
-                <TouchableOpacity
-                  key={income.id}
-                  style={styles.incomeCard}
-                  onPress={() => openEditModal(income)}
-                  onLongPress={() => handleDelete(income)}
-                >
-                  <View style={[styles.iconContainer, { backgroundColor: INCOME_TYPE_COLORS[income.type] + '20' }]}>
-                    <Ionicons
-                      name={INCOME_TYPE_ICONS[income.type] as any}
-                      size={24}
-                      color={INCOME_TYPE_COLORS[income.type]}
-                    />
-                  </View>
-                  <View style={styles.incomeInfo}>
-                    <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{income.description}</Text>
-                    <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
-                      {INCOME_TYPE_LABELS[income.type]}
-                    </Text>
-                    <View style={styles.recurringBadge}>
-                      <Text style={[typography.small, { color: currentTheme.primary, fontWeight: '600' }]}>
-                        {income.recurringFrequency === 'weekly'
-                          ? `Semanal desde día ${income.recurringDay}`
-                          : income.recurringFrequency === 'biweekly'
-                          ? `Quincenal - Día ${income.recurringDay}`
-                          : `Día ${income.recurringDay} de cada mes`
-                        }
-                      </Text>
+                <SwipeableRow key={income.id} onDelete={() => handleDelete(income)}>
+                  <TouchableOpacity
+                    style={styles.incomeCard}
+                    onPress={() => openEditModal(income)}
+                  >
+                    <View style={[styles.iconContainer, { backgroundColor: INCOME_TYPE_COLORS[income.type] + '20' }]}>
+                      <Ionicons
+                        name={INCOME_TYPE_ICONS[income.type] as any}
+                        size={24}
+                        color={INCOME_TYPE_COLORS[income.type]}
+                      />
                     </View>
-                  </View>
-                  <Text style={[typography.sectionTitle, { color: currentTheme.success }]}>
-                    +${formatCurrencyDisplay(income.amount)}
-                  </Text>
-                </TouchableOpacity>
+                    <View style={styles.incomeInfo}>
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{income.description}</Text>
+                      <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
+                        {INCOME_TYPE_LABELS[income.type]}
+                      </Text>
+                      <View style={styles.recurringBadge}>
+                        <Text style={[typography.small, { color: currentTheme.primary, fontWeight: '600' }]}>
+                          {income.recurringFrequency === 'weekly'
+                            ? `Semanal desde día ${income.recurringDay}`
+                            : income.recurringFrequency === 'biweekly'
+                            ? `Quincenal - Día ${income.recurringDay}`
+                            : `Día ${income.recurringDay} de cada mes`
+                          }
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[typography.sectionTitle, { color: currentTheme.success }]}>
+                      +${formatCurrencyDisplay(income.amount)}
+                    </Text>
+                  </TouchableOpacity>
+                </SwipeableRow>
               ))}
           </>
         )}
@@ -328,29 +356,29 @@ export default function IncomeScreen() {
             {incomes
               .filter(i => !i.isRecurring)
               .map((income) => (
-                <TouchableOpacity
-                  key={income.id}
-                  style={styles.incomeCard}
-                  onPress={() => openEditModal(income)}
-                  onLongPress={() => handleDelete(income)}
-                >
-                  <View style={[styles.iconContainer, { backgroundColor: INCOME_TYPE_COLORS[income.type] + '20' }]}>
-                    <Ionicons
-                      name={INCOME_TYPE_ICONS[income.type] as any}
-                      size={24}
-                      color={INCOME_TYPE_COLORS[income.type]}
-                    />
-                  </View>
-                  <View style={styles.incomeInfo}>
-                    <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{income.description}</Text>
-                    <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
-                      {INCOME_TYPE_LABELS[income.type]} • {format(new Date(income.date), 'd MMM', { locale: es })}
+                <SwipeableRow key={income.id} onDelete={() => handleDelete(income)}>
+                  <TouchableOpacity
+                    style={styles.incomeCard}
+                    onPress={() => openEditModal(income)}
+                  >
+                    <View style={[styles.iconContainer, { backgroundColor: INCOME_TYPE_COLORS[income.type] + '20' }]}>
+                      <Ionicons
+                        name={INCOME_TYPE_ICONS[income.type] as any}
+                        size={24}
+                        color={INCOME_TYPE_COLORS[income.type]}
+                      />
+                    </View>
+                    <View style={styles.incomeInfo}>
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{income.description}</Text>
+                      <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
+                        {INCOME_TYPE_LABELS[income.type]} • {format(new Date(income.date), 'd MMM', { locale: es })}
+                      </Text>
+                    </View>
+                    <Text style={[typography.sectionTitle, { color: currentTheme.success }]}>
+                      +${formatCurrencyDisplay(income.amount)}
                     </Text>
-                  </View>
-                  <Text style={[typography.sectionTitle, { color: currentTheme.success }]}>
-                    +${formatCurrencyDisplay(income.amount)}
-                  </Text>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                </SwipeableRow>
               ))}
           </>
         )}
@@ -542,6 +570,60 @@ export default function IncomeScreen() {
             </ScrollView>
           </View>
         </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowDeleteModal(false);
+          setIncomeToDelete(null);
+        }}
+      >
+        <TouchableWithoutFeedback onPress={() => {
+          setShowDeleteModal(false);
+          setIncomeToDelete(null);
+        }}>
+          <View style={common.modalOverlayCentered}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <ScrollView
+                contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.deleteModalContent}>
+                  <View style={{ marginBottom: spacing.lg }}>
+                    <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
+                  </View>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
+                    Eliminar Ingreso
+                  </Text>
+                  <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
+                    {`¿Estás seguro de que quieres eliminar "${incomeToDelete?.description}"? Esta acción no se puede deshacer.`}
+                  </Text>
+                  <View style={styles.deleteModalButtons}>
+                    <TouchableOpacity
+                      style={[styles.deleteModalButton, styles.deleteModalButtonCancel]}
+                      onPress={() => {
+                        setShowDeleteModal(false);
+                        setIncomeToDelete(null);
+                      }}
+                    >
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.deleteModalButton, styles.deleteModalButtonConfirm]}
+                      onPress={confirmDelete}
+                    >
+                      <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );

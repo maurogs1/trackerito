@@ -398,6 +398,9 @@ export const createExpensesSlice: StateCreator<
         idsToDelete = [id, ...children.map((e: Expense) => e.id)];
       }
 
+      // Obtener categoryIds del gasto para decrementar usage_count
+      const categoryIdsToDecrement = expense.categoryIds || [];
+
       // Eliminar todos los gastos relacionados de Supabase
       // (Las expense_categories se eliminan por CASCADE en la BD)
       const { error } = await supabase
@@ -410,12 +413,42 @@ export const createExpensesSlice: StateCreator<
         throw error;
       }
 
+      // Decrementar usage_count de categorías (una vez, igual que al crear)
+      try {
+        for (const catId of categoryIdsToDecrement) {
+          const { data: catData, error: catError } = await supabase
+            .from('categories')
+            .select('usage_count')
+            .eq('id', catId)
+            .single();
+
+          if (!catError && catData && (catData.usage_count || 0) > 0) {
+            await supabase
+              .from('categories')
+              .update({ usage_count: (catData.usage_count || 0) - 1 })
+              .eq('id', catId);
+          }
+        }
+      } catch (err) {
+        logError(err, 'removeExpense-usageCount');
+      }
+
       // Actualizar estado local
-      set((state) => ({
-        expenses: state.expenses.filter((e) => !idsToDelete.includes(e.id)),
-        isLoading: false,
-        error: null
-      } as any));
+      set((state) => {
+        const categories = (state as any).categories || [];
+        const updatedCategories = categories.map((c: any) =>
+          categoryIdsToDecrement.includes(c.id)
+            ? { ...c, usageCount: Math.max(0, (c.usageCount || 0) - 1) }
+            : c
+        );
+
+        return {
+          expenses: state.expenses.filter((e) => !idsToDelete.includes(e.id)),
+          categories: updatedCategories,
+          isLoading: false,
+          error: null,
+        } as any;
+      });
     } catch (error) {
       logError(error, 'removeExpense');
       const errorMessage = getUserFriendlyMessage(error, 'delete');

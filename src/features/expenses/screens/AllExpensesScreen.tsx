@@ -835,7 +835,6 @@ export default function AllExpensesScreen() {
             return (
               <SwipeableRow
                 onDelete={() => handleDelete(expense.id)}
-                backgroundColor={currentTheme.error}
               >
                 <View style={styles.expenseItem}>
                   <TouchableOpacity
@@ -1176,41 +1175,46 @@ export default function AllExpensesScreen() {
           setShowDeleteModal(false);
           setExpenseToDelete(null);
         }}>
-          <View style={common.modalOverlay}>
+          <View style={common.modalOverlayCentered}>
             <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.deleteModalContent}>
-                <View style={{ marginBottom: spacing.lg }}>
-                  <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
+              <ScrollView
+                contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.deleteModalContent}>
+                  <View style={{ marginBottom: spacing.lg }}>
+                    <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
+                  </View>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
+                    {installmentInfo ? 'Eliminar Cuotas' : 'Eliminar Gasto'}
+                  </Text>
+                  <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
+                    {installmentInfo
+                      ? `Este gasto tiene ${installmentInfo.count} cuotas. Se eliminarán TODAS las cuotas de "${installmentInfo.description}". Esta acción no se puede deshacer.`
+                      : '¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.'
+                    }
+                  </Text>
+                  <View style={styles.deleteModalButtons}>
+                    <TouchableOpacity
+                      style={[styles.deleteModalButton, styles.deleteModalButtonCancel]}
+                      onPress={() => {
+                        setShowDeleteModal(false);
+                        setExpenseToDelete(null);
+                      }}
+                    >
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.deleteModalButton, styles.deleteModalButtonConfirm]}
+                      onPress={confirmDelete}
+                    >
+                      <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>
+                        {installmentInfo ? `Eliminar ${installmentInfo.count} cuotas` : 'Eliminar'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
-                  {installmentInfo ? 'Eliminar Cuotas' : 'Eliminar Gasto'}
-                </Text>
-                <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
-                  {installmentInfo
-                    ? `Este gasto tiene ${installmentInfo.count} cuotas. Se eliminarán TODAS las cuotas de "${installmentInfo.description}". Esta acción no se puede deshacer.`
-                    : '¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.'
-                  }
-                </Text>
-                <View style={styles.deleteModalButtons}>
-                  <TouchableOpacity
-                    style={[styles.deleteModalButton, styles.deleteModalButtonCancel]}
-                    onPress={() => {
-                      setShowDeleteModal(false);
-                      setExpenseToDelete(null);
-                    }}
-                  >
-                    <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.deleteModalButton, styles.deleteModalButtonConfirm]}
-                    onPress={confirmDelete}
-                  >
-                    <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>
-                      {installmentInfo ? `Eliminar ${installmentInfo.count} cuotas` : 'Eliminar'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              </ScrollView>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>

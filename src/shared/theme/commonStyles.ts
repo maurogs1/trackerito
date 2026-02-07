@@ -164,6 +164,13 @@ export const createCommonStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: 'flex-end',
   },
 
+  modalOverlayCentered: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
   modalContent: {
     backgroundColor: theme.card,
     borderTopLeftRadius: borderRadius.lg,

@@ -133,8 +133,7 @@ export default function Toast({ toast, onHide, isDark }: ToastProps) {
       shadowOpacity: 0.25,
       shadowRadius: 3.84,
       elevation: 5,
-      minWidth: 200,
-      maxWidth: '100%',
+      width: '100%',
     },
     icon: {
       marginRight: 12,
