@@ -11,13 +11,12 @@ import BenefitsScreen from '../features/benefits/screens/BenefitsScreen';
 import SettingsScreen from '../features/settings/screens/SettingsScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
 import CategoriesScreen from '../features/settings/screens/CategoriesScreen';
-import BanksScreen from '../features/banks/screens/BanksScreen';
-import BankDetailScreen from '../features/banks/screens/BankDetailScreen';
 import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
 import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
 import AddRecurringServiceScreen from '../features/monthlyPayments/screens/AddRecurringServiceScreen';
 import PaymentGroupsScreen from '../features/monthlyPayments/screens/PaymentGroupsScreen';
 import IncomeScreen from '../features/income/screens/IncomeScreen';
+import AddIncomeScreen from '../features/income/screens/AddIncomeScreen';
 import { StatusBar } from 'expo-status-bar';
 import Toast from '../shared/components/Toast';
 import { useToast } from '../shared/hooks/useToast';
@@ -31,13 +30,12 @@ export type RootStackParamList = {
   AllExpenses: undefined;
   FinancialEducation: undefined;
   Benefits: undefined;
-  Banks: undefined;
-  BankDetail: { bankId: string; bankName: string };
   MonthlyPayments: undefined;
   RecurringServices: undefined;
   AddRecurringService: { serviceId?: string; prefilledName?: string; prefilledIcon?: string; prefilledColor?: string; prefilledAmount?: number; prefilledDay?: number } | undefined;
   PaymentGroups: undefined;
   Income: undefined;
+  AddIncome: { incomeId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -170,13 +168,12 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
               component={FinancialEducationScreen}
               options={{ title: 'Educación Financiera' }}
             />
-            <Stack.Screen name="Banks" component={BanksScreen} options={{ title: 'Mis Bancos' }} />
-            <Stack.Screen name="BankDetail" component={BankDetailScreen} options={{ title: 'Detalle del Banco' }} />
             <Stack.Screen name="MonthlyPayments" component={MonthlyPaymentsScreen} options={{ title: 'Pagos del Mes' }} />
             <Stack.Screen name="RecurringServices" component={RecurringServicesScreen} options={{ title: 'Gastos Fijos' }} />
             <Stack.Screen name="AddRecurringService" component={AddRecurringServiceScreen} options={{ title: 'Agregar Gasto Fijo' }} />
             <Stack.Screen name="PaymentGroups" component={PaymentGroupsScreen} options={{ title: 'Grupos de Pago' }} />
             <Stack.Screen name="Income" component={IncomeScreen} options={{ title: 'Mis Ingresos' }} />
+            <Stack.Screen name="AddIncome" component={AddIncomeScreen} options={{ title: 'Agregar Ingreso' }} />
           </>
         )}
         </Stack.Navigator>

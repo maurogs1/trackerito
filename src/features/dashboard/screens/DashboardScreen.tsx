@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions } from 'react-native';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions, PanResponder } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, shadows } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -7,7 +7,6 @@ import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay } from '../../../shared/utils/currency';
-import { BENEFITS, BANKS, formatBenefitDays } from '../../benefits/mockBenefits';
 import { format, parseISO, subMonths, endOfMonth as getEndOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { DashboardSkeleton } from '../../../shared/components/Skeleton';
@@ -21,11 +20,35 @@ export default function DashboardScreen() {
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const { width } = useWindowDimensions();
   const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1;
-  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, userBanks, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense } = useStore();
+  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense } = useStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showMonthCloseModal, setShowMonthCloseModal] = useState(false);
   const [previousMonthBalance, setPreviousMonthBalance] = useState(0);
+  const [carouselPage, setCarouselPage] = useState(0);
+
+  // Pan responder for swipe gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => balance.totalIncome > 0,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond if horizontal movement is greater than vertical
+        return balance.totalIncome > 0 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderRelease: (_, gestureState) => {
+        // Swipe left (negative dx) - next page
+        if (gestureState.dx < -50) {
+          setCarouselPage(1);
+        }
+        // Swipe right (positive dx) - previous page
+        else if (gestureState.dx > 50) {
+          setCarouselPage(0);
+        }
+      },
+    })
+  ).current;
+
   const summary = getSummary();
   const balance = getBalance();
   const isDark = preferences.theme === 'dark';
@@ -44,6 +67,16 @@ export default function DashboardScreen() {
   };
 
   const currentExpenses = getCurrentExpenses();
+
+  // Auto-advance carousel every 15 seconds
+  useEffect(() => {
+    if (balance.totalIncome > 0) {
+      const interval = setInterval(() => {
+        setCarouselPage((prev) => (prev === 0 ? 1 : 0));
+      }, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [balance.totalIncome]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -176,6 +209,121 @@ export default function DashboardScreen() {
     };
   }, [currentExpenses, categories]);
 
+  const tips = useMemo(() => {
+    const tipsList: { icon: string; title: string; description: string; color: string }[] = [];
+    const currentMonth = new Date().getMonth();
+
+    // Filter current month expenses
+    const monthExpenses = currentExpenses.filter(e => new Date(e.date).getMonth() === currentMonth);
+
+    if (monthExpenses.length === 0) {
+      tipsList.push({
+        icon: 'add-circle-outline',
+        title: 'Empezá a registrar',
+        description: 'Registrá tu primer gasto para ver insights personalizados',
+        color: currentTheme.primary,
+      });
+    }
+
+    if (balance.totalIncome === 0 && monthExpenses.length > 0) {
+      tipsList.push({
+        icon: 'wallet-outline',
+        title: 'Configurá ingresos',
+        description: 'Agregá tus ingresos para ver tu balance real y disponible por día',
+        color: currentTheme.primary,
+      });
+    }
+
+    // 50/30/20 analysis
+    if (monthExpenses.length > 0 && balance.totalIncome > 0) {
+      const needsTotal = monthExpenses.filter(e => e.financialType === 'needs').reduce((s, e) => s + e.amount, 0);
+      const wantsTotal = monthExpenses.filter(e => e.financialType === 'wants').reduce((s, e) => s + e.amount, 0);
+      const needsPercent = Math.round((needsTotal / balance.totalIncome) * 100);
+      const wantsPercent = Math.round((wantsTotal / balance.totalIncome) * 100);
+
+      if (needsPercent > 50) {
+        tipsList.push({
+          icon: 'alert-circle-outline',
+          title: `Necesidades: ${needsPercent}%`,
+          description: `La regla 50/30/20 sugiere máximo 50%. Revisá si podés reducir gastos esenciales`,
+          color: currentTheme.warning,
+        });
+      } else if (wantsPercent > 30) {
+        tipsList.push({
+          icon: 'heart-outline',
+          title: `Gustos: ${wantsPercent}%`,
+          description: `La regla 50/30/20 sugiere máximo 30% en gustos. Estás un poco arriba`,
+          color: currentTheme.warning,
+        });
+      }
+    }
+
+    // Top category insight
+    if (topCategory && topCategory.amount > 0) {
+      const savingsIfReduced = Math.round(topCategory.amount * 0.2);
+      tipsList.push({
+        icon: 'bulb-outline',
+        title: `Top: ${topCategory.name}`,
+        description: `Gastaste $${formatCurrencyDisplay(topCategory.amount)}. Reducirlo un 20% = $${formatCurrencyDisplay(savingsIfReduced)} de ahorro`,
+        color: topCategory.color,
+      });
+    }
+
+    // Fixed expenses ratio
+    if (balance.totalIncome > 0) {
+      const fixedTotal = summary.totalFixed + summary.pendingRecurring;
+      const fixedPercent = Math.round((fixedTotal / balance.totalIncome) * 100);
+      if (fixedPercent > 30) {
+        tipsList.push({
+          icon: 'flash-outline',
+          title: `Fijos: ${fixedPercent}% del ingreso`,
+          description: 'Lo recomendado es que no superen el 30% de tus ingresos',
+          color: currentTheme.error,
+        });
+      }
+    }
+
+    // Projection warning
+    if (balance.totalIncome > 0 && summary.projectedBalance > balance.totalIncome) {
+      tipsList.push({
+        icon: 'trending-up-outline',
+        title: 'Proyección alta',
+        description: `A este ritmo gastarías $${formatCurrencyDisplay(summary.projectedBalance)}, más que tu ingreso`,
+        color: currentTheme.error,
+      });
+    }
+
+    // Positive reinforcement
+    if (balance.totalIncome > 0 && balance.balance > 0 && summary.projectedBalance <= balance.totalIncome) {
+      const availablePercent = Math.round((balance.balance / balance.totalIncome) * 100);
+      tipsList.push({
+        icon: 'checkmark-circle-outline',
+        title: 'Vas bien este mes',
+        description: `Tenés el ${availablePercent}% de tu ingreso disponible. Seguí así`,
+        color: currentTheme.success,
+      });
+    }
+
+    // Spending trend vs previous month
+    if (summary.previousMonthBalance > 0 && monthExpenses.length > 0) {
+      const currentTotal = monthExpenses.reduce((s, e) => s + e.amount, 0);
+      const dayOfMonth = new Date().getDate();
+      const projectedCurrent = (currentTotal / dayOfMonth) * 30;
+      const diff = Math.round(((projectedCurrent - summary.previousMonthBalance) / summary.previousMonthBalance) * 100);
+
+      if (Math.abs(diff) > 10) {
+        tipsList.push({
+          icon: diff > 0 ? 'arrow-up-outline' : 'arrow-down-outline',
+          title: diff > 0 ? `${diff}% más que el mes pasado` : `${Math.abs(diff)}% menos que el mes pasado`,
+          description: diff > 0 ? 'Estás gastando más que el mes anterior a este ritmo' : 'Bien, estás gastando menos que el mes anterior',
+          color: diff > 0 ? currentTheme.warning : currentTheme.success,
+        });
+      }
+    }
+
+    return tipsList.slice(0, 3);
+  }, [currentExpenses, balance, summary, topCategory, categories]);
+
   const pendingFixedExpenses = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
@@ -222,7 +370,7 @@ export default function DashboardScreen() {
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-between',
-      marginBottom: spacing.xxl,
+      
     },
     gridItem: {
       width: GRID_ITEM_WIDTH,
@@ -230,7 +378,8 @@ export default function DashboardScreen() {
       padding: spacing.lg,
       borderRadius: borderRadius.lg,
       marginBottom: spacing.lg,
-      ...shadows.sm,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -246,7 +395,8 @@ export default function DashboardScreen() {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      ...shadows.sm,
+      borderWidth: 1,
+      borderColor: currentTheme.border,
     },
     iconContainer: {
       width: 36,
@@ -288,20 +438,16 @@ export default function DashboardScreen() {
       justifyContent: 'center',
       alignItems: 'center',
     },
-    benefitCard: {
-      width: 200,
+    tipCard: {
+      width: 260,
       backgroundColor: currentTheme.card,
-      padding: spacing.md,
-      borderRadius: borderRadius.md,
+      padding: spacing.lg,
+      borderRadius: borderRadius.lg,
       borderWidth: 1,
       borderColor: currentTheme.border,
-      ...shadows.sm,
-    },
-    emptyBenefits: {
-      padding: spacing.xl,
+      flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: currentTheme.card,
-      borderRadius: borderRadius.md,
+      gap: spacing.md,
     },
   });
 
@@ -473,81 +619,155 @@ export default function DashboardScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Insights Grid */}
-        <View style={styles.gridContainer}>
-          {balance.totalIncome > 0 ? (
-            <>
-              <View style={styles.gridItem}>
-                <Ionicons name="today-outline" size={24} color={(hideIncome || hideExpenses) ? currentTheme.textSecondary : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error)} />
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Disponible/día</Text>
-                <Text style={[typography.sectionTitle, { color: (hideIncome || hideExpenses) ? currentTheme.text : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error), marginTop: spacing.xs }]}>
-                  {(hideIncome || hideExpenses) ? '••••••' : `$${formatCurrencyDisplay(balance.availableDaily)}`}
-                </Text>
-                <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
-                  {balance.daysRemaining} días restantes
-                </Text>
-              </View>
+        {/* Insights Carousel */}
+        <View>
+          <View style={styles.gridContainer} {...panResponder.panHandlers}>
+            {balance.totalIncome > 0 ? (
+              // Show carousel with 2 pages
+              carouselPage === 0 ? (
+                // Page 1: Cards 1-4
+                <>
+                  <View style={styles.gridItem}>
+                    <Ionicons name="today-outline" size={24} color={(hideIncome || hideExpenses) ? currentTheme.textSecondary : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error)} />
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Disponible/día</Text>
+                    <Text style={[typography.sectionTitle, { color: (hideIncome || hideExpenses) ? currentTheme.text : (balance.availableDaily > 0 ? currentTheme.success : currentTheme.error), marginTop: spacing.xs }]}>
+                      {(hideIncome || hideExpenses) ? '••••••' : `$${formatCurrencyDisplay(balance.availableDaily)}`}
+                    </Text>
+                    <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
+                      {balance.daysRemaining} días restantes
+                    </Text>
+                  </View>
 
-              <View style={styles.gridItem}>
-                <Ionicons
-                  name={hideExpenses ? "analytics-outline" : (summary.projectedBalance <= balance.totalIncome ? "checkmark-circle-outline" : "warning-outline")}
-                  size={24}
-                  color={hideExpenses ? currentTheme.textSecondary : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.error)}
-                />
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Proyección Mes</Text>
-                <Text style={[typography.sectionTitle, { color: hideExpenses ? currentTheme.text : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.error), marginTop: spacing.xs }]}>
-                  {displayExpense(summary.projectedBalance)}
-                </Text>
-                <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
-                  {hideExpenses ? '••••' : (summary.projectedBalance <= balance.totalIncome ? 'Vas bien ✓' : 'Podrías excederte')}
-                </Text>
-              </View>
+                  <View style={styles.gridItem}>
+                    <Ionicons
+                      name={hideExpenses ? "analytics-outline" : (summary.projectedBalance <= balance.totalIncome ? "checkmark-circle-outline" : "warning-outline")}
+                      size={24}
+                      color={hideExpenses ? currentTheme.textSecondary : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.error)}
+                    />
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Proyección Mes</Text>
+                    <Text style={[typography.sectionTitle, { color: hideExpenses ? currentTheme.text : (summary.projectedBalance <= balance.totalIncome ? currentTheme.success : currentTheme.error), marginTop: spacing.xs }]}>
+                      {displayExpense(summary.projectedBalance)}
+                    </Text>
+                    <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
+                      {hideExpenses ? '••••' : (summary.projectedBalance <= balance.totalIncome ? 'Vas bien ✓' : 'Podrías excederte')}
+                    </Text>
+                  </View>
 
-              <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('MonthlyPayments')} activeOpacity={0.7}>
-                <Ionicons name="flash-outline" size={24} color={currentTheme.primary} />
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Gastos Fijos</Text>
-                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.totalFixed + summary.pendingRecurring)}</Text>
-                {summary.pendingRecurring > 0 && (
-                  <Text style={[typography.small, { color: currentTheme.error, marginTop: 2 }]}>
-                    {hideExpenses ? '••••' : `$${formatCurrencyDisplay(summary.pendingRecurring)} pendiente`}
+                  <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('MonthlyPayments')} activeOpacity={0.7}>
+                    <Ionicons name="flash-outline" size={24} color={currentTheme.primary} />
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Gastos Fijos</Text>
+                    <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.totalFixed + summary.pendingRecurring)}</Text>
+                    {summary.pendingRecurring > 0 && (
+                      <Text style={[typography.small, { color: currentTheme.error, marginTop: 2 }]}>
+                        {hideExpenses ? '••••' : `$${formatCurrencyDisplay(summary.pendingRecurring)} pendiente`}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <View style={styles.gridItem}>
+                    <Ionicons name="shuffle-outline" size={24} color={currentTheme.secondary} />
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Gastos Variables</Text>
+                    <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.totalVariable)}</Text>
+                    <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
+                      {hideExpenses ? '••••' : `$${formatCurrencyDisplay(summary.totalVariable / Math.max(1, summary.daysPassed))}/día prom.`}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                // Page 2: Cards 5-8
+                <>
+                  <View style={styles.gridItem}>
+                    <Ionicons name="trending-down-outline" size={24} color={balance.balance > 0 ? currentTheme.success : currentTheme.error} />
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Balance Restante</Text>
+                    <Text style={[typography.sectionTitle, { color: (hideIncome || hideExpenses) ? currentTheme.text : (balance.balance > 0 ? currentTheme.success : currentTheme.error), marginTop: spacing.xs }]}>
+                      {(hideIncome || hideExpenses) ? '••••••' : `$${formatCurrencyDisplay(balance.balance)}`}
+                    </Text>
+                    <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
+                      Después de fijos
+                    </Text>
+                  </View>
+
+                  <View style={styles.gridItem}>
+                    <Ionicons name="calendar-outline" size={24} color={currentTheme.primary} />
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Promedio Semanal</Text>
+                    <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.weeklyAverage)}</Text>
+                    <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
+                      Últimas semanas
+                    </Text>
+                  </View>
+
+                  <View style={styles.gridItem}>
+                    <Ionicons name={topCategory?.icon as any || "pricetag-outline"} size={24} color={topCategory?.color || currentTheme.text} />
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Top Categoría</Text>
+                    <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]} numberOfLines={1} adjustsFontSizeToFit>
+                      {topCategory ? topCategory.name : '-'}
+                    </Text>
+                    {topCategory && (
+                      <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
+                        ${formatCurrencyDisplay(topCategory.amount)}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.gridItem}>
+                    <Ionicons name="time-outline" size={24} color={currentTheme.warning} />
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Mes Anterior</Text>
+                    <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.previousMonthBalance)}</Text>
+                    <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
+                      Total gastado
+                    </Text>
+                  </View>
+                </>
+              )
+            ) : (
+              // No income: show 4 cards
+              <>
+                <View style={styles.gridItem}>
+                  <Ionicons name="calendar-outline" size={24} color={currentTheme.primary} />
+                  <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Promedio Semanal</Text>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.weeklyAverage)}</Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Ionicons name="trending-up-outline" size={24} color={currentTheme.secondary} />
+                  <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Proyección Mes</Text>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.projectedBalance)}</Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Ionicons name="time-outline" size={24} color={currentTheme.error} />
+                  <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Mes Anterior</Text>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.previousMonthBalance)}</Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Ionicons name={topCategory?.icon as any || "pricetag-outline"} size={24} color={topCategory?.color || currentTheme.text} />
+                  <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Top Categoría</Text>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]} numberOfLines={1} adjustsFontSizeToFit>
+                    {topCategory ? topCategory.name : '-'}
                   </Text>
-                )}
-              </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
 
-              <View style={styles.gridItem}>
-                <Ionicons name="shuffle-outline" size={24} color={currentTheme.secondary} />
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Gastos Variables</Text>
-                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.totalVariable)}</Text>
-                <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]}>
-                  {hideExpenses ? '••••' : `$${formatCurrencyDisplay(summary.totalVariable / Math.max(1, summary.daysPassed))}/día prom.`}
-                </Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.gridItem}>
-                <Ionicons name="calendar-outline" size={24} color={currentTheme.primary} />
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Promedio Semanal</Text>
-                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.weeklyAverage)}</Text>
-              </View>
-              <View style={styles.gridItem}>
-                <Ionicons name="trending-up-outline" size={24} color={currentTheme.secondary} />
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Proyección Mes</Text>
-                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.projectedBalance)}</Text>
-              </View>
-              <View style={styles.gridItem}>
-                <Ionicons name="time-outline" size={24} color={currentTheme.error} />
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Mes Anterior</Text>
-                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]}>{displayExpense(summary.previousMonthBalance)}</Text>
-              </View>
-              <View style={styles.gridItem}>
-                <Ionicons name={topCategory?.icon as any || "pricetag-outline"} size={24} color={topCategory?.color || currentTheme.text} />
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.sm }]}>Top Categoría</Text>
-                <Text style={[typography.sectionTitle, { color: currentTheme.text, marginTop: spacing.xs }]} numberOfLines={1} adjustsFontSizeToFit>
-                  {topCategory ? topCategory.name : '-'}
-                </Text>
-              </View>
-            </>
+          {/* Pagination Dots - Only when income > 0 */}
+          {balance.totalIncome > 0 && (
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.md, marginBottom: spacing.lg, gap: spacing.xs }}>
+              <TouchableOpacity onPress={() => setCarouselPage(0)} activeOpacity={0.7}>
+                <View style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: carouselPage === 0 ? currentTheme.primary : currentTheme.border,
+                }} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCarouselPage(1)} activeOpacity={0.7}>
+                <View style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: carouselPage === 1 ? currentTheme.primary : currentTheme.border,
+                }} />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -593,60 +813,36 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Daily Benefits Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={[typography.sectionTitle, { color: currentTheme.text }]}>Beneficios de Hoy</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Benefits')}>
-            <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Configurar</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Tips Contextuales */}
+        {tips.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={[typography.sectionTitle, { color: currentTheme.text }]}>Tips para vos</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('FinancialEducation')}>
+                <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Aprender más</Text>
+              </TouchableOpacity>
+            </View>
 
-        <View style={{ marginBottom: spacing.xxl }}>
-          {(() => {
-            const today = new Date().getDay();
-            const allDailyBenefits = BENEFITS.filter(b => b.days.includes(today));
-            const displayedBenefits = userBanks.length > 0
-              ? allDailyBenefits.filter(b => userBanks.some(ub => ub.bankId === b.bankId))
-              : allDailyBenefits;
-
-            if (displayedBenefits.length === 0) {
-              return (
-                <View style={styles.emptyBenefits}>
-                  <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
-                    {userBanks.length > 0
-                      ? "No hay beneficios hoy para tus bancos."
-                      : "No hay beneficios disponibles hoy."}
-                  </Text>
-                  <TouchableOpacity onPress={() => navigation.navigate('Benefits')}>
-                    <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Configurar mis tarjetas</Text>
-                  </TouchableOpacity>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.md, paddingRight: spacing.lg }}
+              style={{ marginBottom: spacing.xxl }}
+            >
+              {tips.map((tip, index) => (
+                <View key={index} style={styles.tipCard}>
+                  <View style={[styles.iconContainer, { backgroundColor: tip.color + '20', marginRight: 0 }]}>
+                    <Ionicons name={tip.icon as any} size={24} color={tip.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[typography.bodyBold, { color: currentTheme.text }]} numberOfLines={1}>{tip.title}</Text>
+                    <Text style={[typography.small, { color: currentTheme.textSecondary, marginTop: 2 }]} numberOfLines={2}>{tip.description}</Text>
+                  </View>
                 </View>
-              );
-            }
-
-            return (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md, paddingRight: spacing.lg }}>
-                {displayedBenefits.slice(0, 5).map(benefit => {
-                  const bank = BANKS.find(bk => bk.id === benefit.bankId);
-                  if (!bank) return null;
-                  return (
-                    <View key={benefit.id} style={styles.benefitCard}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs }}>
-                        <Text style={[typography.captionBold, { color: bank.color }]}>{bank.name}</Text>
-                        <Text style={[typography.bodyBold, { color: currentTheme.success }]}>{benefit.discountPercentage}% OFF</Text>
-                      </View>
-                      <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.xs }]}>{benefit.description}</Text>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={[typography.small, { color: currentTheme.textSecondary, textTransform: 'uppercase' }]}>{benefit.category}</Text>
-                        <Text style={[typography.small, { color: currentTheme.textSecondary }]}>{formatBenefitDays(benefit.days)}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </ScrollView>
-            );
-          })()}
-        </View>
+              ))}
+            </ScrollView>
+          </>
+        )}
 
         {/* Gastos Fijos Pendientes */}
         {pendingFixedExpenses.length > 0 && (

@@ -50,10 +50,18 @@ export function CategoryPicker({
   const categories = getMostUsedCategories();
 
   const sortedCategories = useMemo(() => {
-    const newCats = allCategories.filter((c: any) => newlyAddedCategoryIds.includes(c.id));
-    const standardCats = categories.filter((c: any) => !newlyAddedCategoryIds.includes(c.id));
-    return [...newCats, ...standardCats];
-  }, [categories, allCategories, newlyAddedCategoryIds]);
+    // 1. Selected categories first (for edit mode)
+    const selectedCats = allCategories.filter((c: any) => selectedIds.includes(c.id));
+    // 2. Newly added categories (not selected)
+    const newCats = allCategories.filter((c: any) =>
+      newlyAddedCategoryIds.includes(c.id) && !selectedIds.includes(c.id)
+    );
+    // 3. Standard categories (not selected, not new)
+    const standardCats = categories.filter((c: any) =>
+      !newlyAddedCategoryIds.includes(c.id) && !selectedIds.includes(c.id)
+    );
+    return [...selectedCats, ...newCats, ...standardCats];
+  }, [categories, allCategories, newlyAddedCategoryIds, selectedIds]);
 
   const filteredCategories = sortedCategories.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const showSearch = sortedCategories.length > 10;
