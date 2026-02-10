@@ -778,6 +778,7 @@ export default function DashboardScreen() {
 
         <ScrollView
           horizontal
+          nestedScrollEnabled
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingRight: spacing.lg, gap: spacing.md }}
           style={{ marginBottom: spacing.xxl }}
@@ -799,6 +800,16 @@ export default function DashboardScreen() {
             <View>
               <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Mis Gastos</Text>
               <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Ver historial</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('WhatsApp')}>
+            <View style={[styles.carouselIcon, { backgroundColor: '#25D366' }]}>
+              <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
+            </View>
+            <View>
+              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>WhatsApp</Text>
+              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Bot y puntos</Text>
             </View>
           </TouchableOpacity>
 
@@ -825,6 +836,7 @@ export default function DashboardScreen() {
 
             <ScrollView
               horizontal
+              nestedScrollEnabled
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: spacing.md, paddingRight: spacing.lg }}
               style={{ marginBottom: spacing.xxl }}
@@ -862,7 +874,7 @@ export default function DashboardScreen() {
                 return (
                   <TouchableOpacity
                     key={service.id}
-                    style={[styles.expenseItem, isOverdue && { borderLeftWidth: 3, borderLeftColor: currentTheme.error }]}
+                    style={[styles.expenseItem, isOverdue && { borderLeftWidth: 3 }]}
                     onPress={() => navigation.navigate('MonthlyPayments')}
                     activeOpacity={0.7}
                   >

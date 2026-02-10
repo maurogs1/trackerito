@@ -17,6 +17,7 @@ import AddRecurringServiceScreen from '../features/monthlyPayments/screens/AddRe
 import PaymentGroupsScreen from '../features/monthlyPayments/screens/PaymentGroupsScreen';
 import IncomeScreen from '../features/income/screens/IncomeScreen';
 import AddIncomeScreen from '../features/income/screens/AddIncomeScreen';
+import WhatsAppScreen from '../features/whatsapp/screens/WhatsAppScreen';
 import { StatusBar } from 'expo-status-bar';
 import Toast from '../shared/components/Toast';
 import { useToast } from '../shared/hooks/useToast';
@@ -36,6 +37,7 @@ export type RootStackParamList = {
   PaymentGroups: undefined;
   Income: undefined;
   AddIncome: { incomeId?: string } | undefined;
+  WhatsApp: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -174,6 +176,7 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
             <Stack.Screen name="PaymentGroups" component={PaymentGroupsScreen} options={{ title: 'Grupos de Pago' }} />
             <Stack.Screen name="Income" component={IncomeScreen} options={{ title: 'Mis Ingresos' }} />
             <Stack.Screen name="AddIncome" component={AddIncomeScreen} options={{ title: 'Agregar Ingreso' }} />
+            <Stack.Screen name="WhatsApp" component={WhatsAppScreen} options={{ title: 'WhatsApp Bot' }} />
           </>
         )}
         </Stack.Navigator>

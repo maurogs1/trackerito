@@ -1,20 +1,25 @@
 import { StateCreator } from 'zustand';
 import { supabase } from '../../services/supabase';
-import { UserProfile } from '../../features/settings/types';
+import { UserProfile, WhatsappUsage } from '../../features/settings/types';
 
 export interface UserProfileSlice {
   userProfile: UserProfile | null;
   userProfileLoading: boolean;
   userProfileError: string | null;
+  whatsappUsage: WhatsappUsage | null;
+  whatsappUsageLoading: boolean;
   loadUserProfile: () => Promise<void>;
   updatePhoneNumber: (phoneNumber: string) => Promise<void>;
   toggleWhatsappNotifications: () => Promise<void>;
+  loadWhatsappUsage: () => Promise<void>;
 }
 
 export const createUserProfileSlice: StateCreator<UserProfileSlice> = (set, get) => ({
   userProfile: null,
   userProfileLoading: false,
   userProfileError: null,
+  whatsappUsage: null,
+  whatsappUsageLoading: false,
 
   loadUserProfile: async () => {
     set({ userProfileLoading: true, userProfileError: null });
@@ -131,6 +136,35 @@ export const createUserProfileSlice: StateCreator<UserProfileSlice> = (set, get)
         userProfileLoading: false
       });
       throw error;
+    }
+  },
+
+  loadWhatsappUsage: async () => {
+    set({ whatsappUsageLoading: true });
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        set({ whatsappUsageLoading: false });
+        return;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('whatsapp_usage')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('date', today)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      set({ whatsappUsage: data, whatsappUsageLoading: false });
+    } catch (error) {
+      console.error('Error loading whatsapp usage:', error);
+      set({ whatsappUsageLoading: false });
     }
   },
 });

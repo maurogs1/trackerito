@@ -16,3 +16,20 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
 }
+
+export interface WhatsappUsage {
+  id: string;
+  user_id: string;
+  date: string;
+  points_used: number;
+  audio_count: number;
+  text_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const WHATSAPP_USAGE_LIMITS = {
+  DAILY_POINTS: 20,
+  AUDIO_COST: 2,
+  TEXT_COST: 1,
+} as const;
