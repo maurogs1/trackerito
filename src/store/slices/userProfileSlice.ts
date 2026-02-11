@@ -155,9 +155,9 @@ export const createUserProfileSlice: StateCreator<UserProfileSlice> = (set, get)
         .select('*')
         .eq('user_id', user.id)
         .eq('date', today)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         throw error;
       }
 

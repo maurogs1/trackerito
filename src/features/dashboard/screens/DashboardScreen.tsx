@@ -803,6 +803,16 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('Statistics')}>
+            <View style={[styles.carouselIcon, { backgroundColor: '#FF5722' }]}>
+              <Ionicons name="stats-chart" size={20} color="#FFF" />
+            </View>
+            <View>
+              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Estadísticas</Text>
+              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Gráficos</Text>
+            </View>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('WhatsApp')}>
             <View style={[styles.carouselIcon, { backgroundColor: '#25D366' }]}>
               <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
@@ -874,7 +884,7 @@ export default function DashboardScreen() {
                 return (
                   <TouchableOpacity
                     key={service.id}
-                    style={[styles.expenseItem, isOverdue && { borderLeftWidth: 3 }]}
+                    style={[styles.expenseItem, ]}
                     onPress={() => navigation.navigate('MonthlyPayments')}
                     activeOpacity={0.7}
                   >
