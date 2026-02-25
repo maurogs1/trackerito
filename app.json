@@ -4,11 +4,11 @@
     "slug": "trackerito",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/trackerito_logo.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/trackerito_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#6366F1"
     },
@@ -20,8 +20,9 @@
       ]
     },
     "android": {
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/trackerito_logo.png",
         "backgroundColor": "#6366F1"
       },
       "package": "com.flore.trackerito",
@@ -60,7 +61,7 @@
         {
           "androidIcons": {
             "add_icon": {
-              "foregroundImage": "./assets/adaptive-icon.png",
+              "foregroundImage": "./assets/trackerito_logo.png",
               "backgroundColor": "#6366F1"
             }
           }
