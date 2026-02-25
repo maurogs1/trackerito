@@ -72,10 +72,15 @@ export default function WhatsAppScreen() {
 
   const sendWelcomeMessage = async (phoneNumber: string) => {
     try {
-      const BOT_URL = __DEV__ ? 'http://localhost:3001' : 'https://your-bot-url.com';
+      const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL;
+      const BOT_API_KEY = process.env.EXPO_PUBLIC_BOT_API_KEY;
+      if (!BOT_URL) return;
       await fetch(`${BOT_URL}/api/send-welcome`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(BOT_API_KEY ? { 'Authorization': `Bearer ${BOT_API_KEY}` } : {}),
+        },
         body: JSON.stringify({ phoneNumber }),
       });
     } catch {
