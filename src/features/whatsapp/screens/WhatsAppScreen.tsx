@@ -1,10 +1,14 @@
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Switch, TouchableOpacity, Alert, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { WHATSAPP_USAGE_LIMITS } from '../../settings/types';
 import PhoneInput from '../../../shared/components/PhoneInput';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const COOLDOWN_SECONDS = 60;
+const PHONE_EDIT_TS_KEY = 'phone_last_edit_ts';
 
 export default function WhatsAppScreen() {
   const {
@@ -26,15 +30,46 @@ export default function WhatsAppScreen() {
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadWhatsappUsage();
     loadUserProfile();
+    // Restaurar cooldown guardado
+    AsyncStorage.getItem(PHONE_EDIT_TS_KEY).then((ts) => {
+      if (ts) {
+        const elapsed = Math.floor((Date.now() - parseInt(ts)) / 1000);
+        const remaining = COOLDOWN_SECONDS - elapsed;
+        if (remaining > 0) startCooldownTimer(remaining);
+      }
+    });
+    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
   }, []);
 
   useEffect(() => {
     setPhoneInput(userProfile?.phone_number || '');
   }, [userProfile?.phone_number]);
+
+  const startCooldownTimer = (seconds: number) => {
+    setCooldownRemaining(seconds);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setCooldownRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current!);
+          cooldownRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const startCooldown = () => {
+    AsyncStorage.setItem(PHONE_EDIT_TS_KEY, Date.now().toString());
+    startCooldownTimer(COOLDOWN_SECONDS);
+  };
 
   const hasPhone = !!userProfile?.phone_number;
 
@@ -52,30 +87,28 @@ export default function WhatsAppScreen() {
       setPhoneError('Número incompleto');
       return;
     }
-    const isFirstSetup = !hasPhone;
     try {
       await updatePhoneNumber(phoneInput);
       setIsEditingPhone(false);
       setPhoneError('');
-
-      if (isFirstSetup) {
-        // Enviar mensaje de bienvenida por WhatsApp
-        sendWelcomeMessage(phoneInput);
-        Alert.alert('¡Listo!', 'Tu WhatsApp fue vinculado. Te enviamos un mensaje de bienvenida al bot.');
-      } else {
-        Alert.alert('Guardado', 'Tu número de WhatsApp ha sido actualizado');
-      }
+      sendWelcomeMessage(phoneInput);
+      startCooldown();
+      Alert.alert('¡Listo!', 'Tu WhatsApp fue vinculado. Te enviamos un mensaje de bienvenida al bot.');
     } catch (error) {
       Alert.alert('Error', 'No se pudo guardar el número');
     }
   };
 
   const sendWelcomeMessage = async (phoneNumber: string) => {
+    const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL;
+    const BOT_API_KEY = process.env.EXPO_PUBLIC_BOT_API_KEY;
+    console.log('[sendWelcomeMessage] BOT_URL:', BOT_URL, '| phone:', phoneNumber);
+    if (!BOT_URL) {
+      console.log('[sendWelcomeMessage] Sin BOT_URL, abortando');
+      return;
+    }
     try {
-      const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL;
-      const BOT_API_KEY = process.env.EXPO_PUBLIC_BOT_API_KEY;
-      if (!BOT_URL) return;
-      await fetch(`${BOT_URL}/api/send-welcome`, {
+      const res = await fetch(`${BOT_URL}/api/send-welcome`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,9 +116,9 @@ export default function WhatsAppScreen() {
         },
         body: JSON.stringify({ phoneNumber }),
       });
-    } catch {
-      // Silencioso - no bloquear si el bot no está disponible
-      console.log('Bot no disponible para enviar bienvenida');
+      console.log('[sendWelcomeMessage] status:', res.status);
+    } catch (e) {
+      console.log('[sendWelcomeMessage] error:', e);
     }
   };
 
@@ -95,6 +128,7 @@ export default function WhatsAppScreen() {
       setShowDeleteModal(false);
       setPhoneInput('');
       setIsEditingPhone(false);
+      startCooldown();
     } catch (error) {
       Alert.alert('Error', 'No se pudo eliminar el número');
     }
@@ -395,11 +429,24 @@ export default function WhatsAppScreen() {
               <Text style={[styles.value, { marginTop: spacing.xs }]}>{userProfile.phone_number}</Text>
             </View>
             <View style={styles.phoneActions}>
-              <TouchableOpacity onPress={() => setIsEditingPhone(true)} activeOpacity={0.7}>
-                <Ionicons name="pencil" size={18} color={currentTheme.primary} />
+              {cooldownRemaining > 0 ? (
+                <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
+                  {cooldownRemaining}s
+                </Text>
+              ) : null}
+              <TouchableOpacity
+                onPress={() => setIsEditingPhone(true)}
+                activeOpacity={0.7}
+                disabled={cooldownRemaining > 0}
+              >
+                <Ionicons name="pencil" size={18} color={cooldownRemaining > 0 ? currentTheme.textSecondary : currentTheme.primary} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowDeleteModal(true)} activeOpacity={0.7}>
-                <Ionicons name="trash" size={18} color={currentTheme.error} />
+              <TouchableOpacity
+                onPress={() => setShowDeleteModal(true)}
+                activeOpacity={0.7}
+                disabled={cooldownRemaining > 0}
+              >
+                <Ionicons name="trash" size={18} color={cooldownRemaining > 0 ? currentTheme.textSecondary : currentTheme.error} />
               </TouchableOpacity>
             </View>
           </View>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions, PanResponder, Animated } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, shadows } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,24 +26,35 @@ export default function DashboardScreen() {
   const [showMonthCloseModal, setShowMonthCloseModal] = useState(false);
   const [previousMonthBalance, setPreviousMonthBalance] = useState(0);
   const [carouselPage, setCarouselPage] = useState(0);
+  const carouselPageRef = useRef(0);
+  const carouselFade = useRef(new Animated.Value(1)).current;
+  const changePageFn = useRef<(page: number) => void>(() => {});
+
+  const changePage = useCallback((page: number) => {
+    Animated.timing(carouselFade, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
+      carouselPageRef.current = page;
+      setCarouselPage(page);
+      Animated.timing(carouselFade, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    });
+  }, [carouselFade]);
+
+  // Keep ref in sync so panResponder can call the latest version
+  changePageFn.current = changePage;
 
   // Pan responder for swipe gestures
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => balance.totalIncome > 0,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond if horizontal movement is greater than vertical
-        return balance.totalIncome > 0 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+        // Solo captura si el movimiento horizontal supera al vertical
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
       },
       onPanResponderTerminationRequest: () => false,
       onPanResponderRelease: (_, gestureState) => {
-        // Swipe left (negative dx) - next page
         if (gestureState.dx < -50) {
-          setCarouselPage(1);
-        }
-        // Swipe right (positive dx) - previous page
-        else if (gestureState.dx > 50) {
-          setCarouselPage(0);
+          changePageFn.current(1);
+        } else if (gestureState.dx > 50) {
+          changePageFn.current(0);
         }
       },
     })
@@ -72,7 +83,7 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (balance.totalIncome > 0) {
       const interval = setInterval(() => {
-        setCarouselPage((prev) => (prev === 0 ? 1 : 0));
+        changePageFn.current(carouselPageRef.current === 0 ? 1 : 0);
       }, 15000);
       return () => clearInterval(interval);
     }
@@ -621,7 +632,7 @@ export default function DashboardScreen() {
 
         {/* Insights Carousel */}
         <View>
-          <View style={styles.gridContainer} {...panResponder.panHandlers}>
+          <Animated.View style={[styles.gridContainer, { opacity: carouselFade }]} {...panResponder.panHandlers}>
             {balance.totalIncome > 0 ? (
               // Show carousel with 2 pages
               carouselPage === 0 ? (
@@ -746,12 +757,12 @@ export default function DashboardScreen() {
                 </View>
               </>
             )}
-          </View>
+          </Animated.View>
 
           {/* Pagination Dots - Only when income > 0 */}
           {balance.totalIncome > 0 && (
             <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.md, marginBottom: spacing.lg, gap: spacing.xs }}>
-              <TouchableOpacity onPress={() => setCarouselPage(0)} activeOpacity={0.7}>
+              <TouchableOpacity onPress={() => changePage(0)} activeOpacity={0.7}>
                 <View style={{
                   width: 8,
                   height: 8,
@@ -759,7 +770,7 @@ export default function DashboardScreen() {
                   backgroundColor: carouselPage === 0 ? currentTheme.primary : currentTheme.border,
                 }} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCarouselPage(1)} activeOpacity={0.7}>
+              <TouchableOpacity onPress={() => changePage(1)} activeOpacity={0.7}>
                 <View style={{
                   width: 8,
                   height: 8,

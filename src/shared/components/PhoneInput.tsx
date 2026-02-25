@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Modal, FlatList, TouchableWithoutFeedback } from 'react-native';
 import { typography, spacing, borderRadius, createCommonStyles } from '../theme';
 import { Theme } from '../theme';
@@ -44,12 +44,13 @@ function parsePhoneNumber(fullNumber: string) {
   for (const country of sorted) {
     if (fullNumber.startsWith(country.dialCode)) {
       const rest = fullNumber.slice(country.dialCode.length);
-      // For Argentina: skip the 9 (mobile prefix), then area is first 2-4 digits
+      // For Argentina: skip the 9 (mobile prefix), then split area/number
       if (country.code === 'AR' && rest.startsWith('9')) {
         const withoutNine = rest.slice(1);
-        // Area code: first 2 digits for Buenos Aires (11), up to 4 for other areas
-        const area = withoutNine.slice(0, 2);
-        const number = withoutNine.slice(2);
+        // Buenos Aires (11) → 2 digits; rest del país → 3 dígitos
+        const areaLen = withoutNine.startsWith('11') ? 2 : 3;
+        const area = withoutNine.slice(0, areaLen);
+        const number = withoutNine.slice(areaLen);
         return { country, area, number };
       }
       // Generic: first 2 digits as area
@@ -68,6 +69,20 @@ export default function PhoneInput({ value, onChangeValue, currentTheme, error }
   const [area, setArea] = useState(parsed.area);
   const [number, setNumber] = useState(parsed.number);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const isInternalEdit = useRef(false);
+
+  // Sincronizar estado interno cuando el valor externo cambia (ej: al eliminar el número)
+  // Ignorar cuando el cambio lo originó el propio componente (evita re-parseo durante edición)
+  useEffect(() => {
+    if (isInternalEdit.current) {
+      isInternalEdit.current = false;
+      return;
+    }
+    const p = parsePhoneNumber(value);
+    setSelectedCountry(p.country);
+    setArea(p.area);
+    setNumber(p.number);
+  }, [value]);
   const common = createCommonStyles(currentTheme);
 
   const buildFullNumber = (country: Country, areaCode: string, phoneNumber: string) => {
@@ -83,18 +98,21 @@ export default function PhoneInput({ value, onChangeValue, currentTheme, error }
   const handleAreaChange = (text: string) => {
     const cleaned = text.replace(/\D/g, '').slice(0, 4);
     setArea(cleaned);
+    isInternalEdit.current = true;
     onChangeValue(buildFullNumber(selectedCountry, cleaned, number));
   };
 
   const handleNumberChange = (text: string) => {
     const cleaned = text.replace(/\D/g, '').slice(0, 10);
     setNumber(cleaned);
+    isInternalEdit.current = true;
     onChangeValue(buildFullNumber(selectedCountry, area, cleaned));
   };
 
   const handleCountrySelect = (country: Country) => {
     setSelectedCountry(country);
     setShowCountryPicker(false);
+    isInternalEdit.current = true;
     onChangeValue(buildFullNumber(country, area, number));
   };
 
