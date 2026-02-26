@@ -34,6 +34,10 @@ export default function WhatsAppScreen() {
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    Alert.alert(
+      'Debug ENV',
+      `BOT_URL: ${process.env.EXPO_PUBLIC_BOT_URL ?? 'undefined'}\nAPI_KEY: ${process.env.EXPO_PUBLIC_BOT_API_KEY ?? 'undefined'}`
+    );
     loadWhatsappUsage();
     loadUserProfile();
     // Restaurar cooldown guardado
@@ -91,7 +95,7 @@ export default function WhatsAppScreen() {
       await updatePhoneNumber(phoneInput);
       setIsEditingPhone(false);
       setPhoneError('');
-      sendWelcomeMessage(phoneInput);
+      await sendWelcomeMessage(phoneInput);
       startCooldown();
       Alert.alert('¡Listo!', 'Tu WhatsApp fue vinculado. Te enviamos un mensaje de bienvenida al bot.');
     } catch (error) {
@@ -102,9 +106,8 @@ export default function WhatsAppScreen() {
   const sendWelcomeMessage = async (phoneNumber: string) => {
     const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL;
     const BOT_API_KEY = process.env.EXPO_PUBLIC_BOT_API_KEY;
-    console.log('[sendWelcomeMessage] BOT_URL:', BOT_URL, '| phone:', phoneNumber);
     if (!BOT_URL) {
-      console.log('[sendWelcomeMessage] Sin BOT_URL, abortando');
+      Alert.alert('Debug: Sin BOT_URL', 'La variable EXPO_PUBLIC_BOT_URL no está configurada en el build.');
       return;
     }
     try {
@@ -116,9 +119,12 @@ export default function WhatsAppScreen() {
         },
         body: JSON.stringify({ phoneNumber }),
       });
-      console.log('[sendWelcomeMessage] status:', res.status);
-    } catch (e) {
-      console.log('[sendWelcomeMessage] error:', e);
+      if (!res.ok) {
+        const text = await res.text();
+        Alert.alert('Debug: Error del servidor', `Status: ${res.status}\n${text}`);
+      }
+    } catch (e: any) {
+      Alert.alert('Debug: Error de red', `No se pudo conectar al bot.\n\nURL: ${BOT_URL}\nError: ${e?.message ?? e}`);
     }
   };
 
