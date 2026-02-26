@@ -8,7 +8,25 @@
       "Read(//c/Users/flore/Desktop/trackerito_whatsapp/src/services/**)",
       "Read(//c/Users/flore/Desktop/trackerito_whatsapp/src/**)",
       "Bash(ls:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(git checkout:*)",
+      "Bash(npx --yes tsc:*)",
+      "Bash(node node_modules/typescript/bin/tsc:*)",
+      "Bash(\".\\\\node_modules\\\\.bin\\\\tsc\" --noEmit)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(node ./node_modules/typescript/bin/tsc:*)",
+      "WebFetch(domain:console.groq.com)",
+      "WebFetch(domain:groq.com)",
+      "Bash(cmd /c \"cd /d c:\\\\Users\\\\flore\\\\Desktop\\\\trackerito_whatsapp && npx tsc --noEmit 2>&1\")",
+      "Bash(cmd /c \"cd /d c:\\\\Users\\\\flore\\\\Desktop\\\\trackerito_whatsapp && npx tsc --noEmit\")",
+      "Bash(find:*)",
+      "Read(//c/Users/flore/Desktop/trackerito_whatsapp/**)",
+      "Bash(findstr:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(eas secret:list)"
     ]
   }
 }

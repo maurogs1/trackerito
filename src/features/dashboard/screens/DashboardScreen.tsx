@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions, PanResponder, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions, PanResponder, Animated, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useStore } from '../../../store/useStore';
-import { theme, typography, spacing, borderRadius, shadows } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useNavigation } from '@react-navigation/native';
@@ -11,6 +11,9 @@ import { format, parseISO, subMonths, endOfMonth as getEndOfMonth } from 'date-f
 import { es } from 'date-fns/locale';
 import { DashboardSkeleton } from '../../../shared/components/Skeleton';
 import MonthCloseModal from '../components/MonthCloseModal';
+import { SwipeableRow } from '../../../shared/components/SwipeableRow';
+import { SwipeTutorialOverlay, hasSeenSwipeTutorial, markSwipeTutorialSeen } from '../../../shared/components/SwipeTutorialOverlay';
+import { useToast } from '../../../shared/hooks/useToast';
 
 type DashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -20,10 +23,14 @@ export default function DashboardScreen() {
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const { width } = useWindowDimensions();
   const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1;
-  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense } = useStore();
+  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense, removeExpense } = useStore();
+  const { showSuccess, showError } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showMonthCloseModal, setShowMonthCloseModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
+  const [showSwipeTutorial, setShowSwipeTutorial] = useState(false);
   const [previousMonthBalance, setPreviousMonthBalance] = useState(0);
   const [carouselPage, setCarouselPage] = useState(0);
   const carouselPageRef = useRef(0);
@@ -64,6 +71,7 @@ export default function DashboardScreen() {
   const balance = getBalance();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const common = createCommonStyles(currentTheme);
   const hideIncome = preferences.hideIncome ?? false;
   const hideExpenses = preferences.hideExpenses ?? false;
 
@@ -99,9 +107,29 @@ export default function DashboardScreen() {
         loadServicePayments(),
       ]);
       setIsLoading(false);
+      const seen = await hasSeenSwipeTutorial();
+      if (!seen) setShowSwipeTutorial(true);
     };
     loadData();
   }, []);
+
+  const handleDeleteExpense = (id: string) => {
+    setExpenseToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    try {
+      await removeExpense(expenseToDelete);
+      showSuccess('Gasto eliminado');
+    } catch {
+      showError('No se pudo eliminar el gasto');
+    } finally {
+      setShowDeleteModal(false);
+      setExpenseToDelete(null);
+    }
+  };
 
   // Detectar si hay un mes sin cerrar
   useEffect(() => {
@@ -804,6 +832,16 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('WhatsApp')}>
+            <View style={[styles.carouselIcon, { backgroundColor: '#25D366' }]}>
+              <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
+            </View>
+            <View>
+              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>WhatsApp</Text>
+              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Bot y puntos</Text>
+            </View>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('AllExpenses')}>
             <View style={[styles.carouselIcon, { backgroundColor: '#2196F3' }]}>
               <Ionicons name="list" size={20} color="#FFF" />
@@ -821,16 +859,6 @@ export default function DashboardScreen() {
             <View>
               <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Estadísticas</Text>
               <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Gráficos</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('WhatsApp')}>
-            <View style={[styles.carouselIcon, { backgroundColor: '#25D366' }]}>
-              <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
-            </View>
-            <View>
-              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>WhatsApp</Text>
-              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Bot y puntos</Text>
             </View>
           </TouchableOpacity>
 
@@ -957,24 +985,28 @@ export default function DashboardScreen() {
           const categoryNames = expense.categoryIds?.map(id => categories.find(c => c.id === id)?.name).filter(Boolean).join(', ');
 
           return (
-            <View key={expense.id} style={styles.expenseItem}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
-                  <Ionicons name={category.icon as any} size={24} color={category.color} />
+            <View key={expense.id} style={{ marginBottom: spacing.sm }}>
+              <SwipeableRow onDelete={() => handleDeleteExpense(expense.id)}>
+                <View style={[styles.expenseItem, { marginBottom: 0 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
+                      <Ionicons name={category.icon as any} size={24} color={category.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{expense.description}</Text>
+                      <Text style={[typography.caption, { color: currentTheme.textSecondary }]} numberOfLines={1}>
+                        {categoryNames || category.name}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={[typography.bodyBold, { color: currentTheme.error }]}>-${formatCurrencyDisplay(expense.amount)}</Text>
+                    <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.xs }]}>
+                      {format(parseISO(expense.date), 'd MMM yyyy', { locale: es })}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{expense.description}</Text>
-                  <Text style={[typography.caption, { color: currentTheme.textSecondary }]} numberOfLines={1}>
-                    {categoryNames || category.name}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[typography.bodyBold, { color: currentTheme.error }]}>-${formatCurrencyDisplay(expense.amount)}</Text>
-                <Text style={[typography.caption, { color: currentTheme.textSecondary, marginTop: spacing.xs }]}>
-                  {format(parseISO(expense.date), 'd MMM yyyy', { locale: es })}
-                </Text>
-              </View>
+              </SwipeableRow>
             </View>
           );
         })}
@@ -993,6 +1025,59 @@ export default function DashboardScreen() {
         onCarryOver={handleCarryOver}
         onRegisterAsExpense={handleRegisterAsExpense}
         onStartFresh={handleStartFresh}
+      />
+
+      {/* Modal confirmación de eliminación */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setShowDeleteModal(false); setExpenseToDelete(null); }}
+      >
+        <TouchableWithoutFeedback onPress={() => { setShowDeleteModal(false); setExpenseToDelete(null); }}>
+          <View style={common.modalOverlayCentered}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <ScrollView
+                contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={{ backgroundColor: currentTheme.card, borderRadius: borderRadius.lg, padding: spacing.xxl, width: '85%', maxWidth: 400, alignItems: 'center' }}>
+                  <View style={{ marginBottom: spacing.lg }}>
+                    <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
+                  </View>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
+                    Eliminar Gasto
+                  </Text>
+                  <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
+                    ¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: spacing.md, width: '100%' }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: currentTheme.surface, borderWidth: 1, borderColor: currentTheme.border }}
+                      onPress={() => { setShowDeleteModal(false); setExpenseToDelete(null); }}
+                    >
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flex: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: currentTheme.error }}
+                      onPress={confirmDeleteExpense}
+                    >
+                      <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <SwipeTutorialOverlay
+        visible={showSwipeTutorial}
+        onDismiss={async () => {
+          setShowSwipeTutorial(false);
+          await markSwipeTutorialSeen();
+        }}
       />
     </View>
   );

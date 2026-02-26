@@ -12,6 +12,7 @@ import { es } from 'date-fns/locale';
 import { RecurringService } from '../types';
 import { useToast } from '../../../shared/hooks/useToast';
 import { SwipeableRow } from '../../../shared/components/SwipeableRow';
+import { SwipeTutorialOverlay, hasSeenSwipeTutorial, markSwipeTutorialSeen } from '../../../shared/components/SwipeTutorialOverlay';
 
 type MonthlyPaymentsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'MonthlyPayments'>;
 
@@ -41,12 +42,15 @@ export default function MonthlyPaymentsScreen() {
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState<RecurringService | null>(null);
-
+  const [showSwipeTutorial, setShowSwipeTutorial] = useState(false);
 
   useEffect(() => {
     loadRecurringServices();
     loadServicePayments();
     loadExpenses();
+    hasSeenSwipeTutorial().then(seen => {
+      if (!seen) setShowSwipeTutorial(true);
+    });
   }, []);
 
   const changeMonth = (increment: number) => {
@@ -420,6 +424,14 @@ export default function MonthlyPaymentsScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <SwipeTutorialOverlay
+        visible={showSwipeTutorial}
+        onDismiss={async () => {
+          setShowSwipeTutorial(false);
+          await markSwipeTutorialSeen();
+        }}
+      />
     </View>
   );
 }

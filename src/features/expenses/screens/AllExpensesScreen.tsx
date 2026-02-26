@@ -10,6 +10,7 @@ import { formatCurrencyDisplay } from '../../../shared/utils/currency';
 import { useToast } from '../../../shared/hooks/useToast';
 import { ActivityListSkeleton } from '../../../shared/components/Skeleton';
 import { SwipeableRow } from '../../../shared/components/SwipeableRow';
+import { SwipeTutorialOverlay, hasSeenSwipeTutorial, markSwipeTutorialSeen } from '../../../shared/components/SwipeTutorialOverlay';
 import {
   startOfWeek,
   endOfWeek,
@@ -44,6 +45,7 @@ export default function AllExpensesScreen() {
   const { showSuccess, showError } = useToast();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [showSwipeTutorial, setShowSwipeTutorial] = useState(false);
 
   // Load expenses if not already loaded
   useEffect(() => {
@@ -52,6 +54,8 @@ export default function AllExpensesScreen() {
         await loadExpenses();
       }
       setIsLoading(false);
+      const seen = await hasSeenSwipeTutorial();
+      if (!seen) setShowSwipeTutorial(true);
     };
     init();
   }, []);
@@ -1216,6 +1220,14 @@ export default function AllExpensesScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <SwipeTutorialOverlay
+        visible={showSwipeTutorial}
+        onDismiss={async () => {
+          setShowSwipeTutorial(false);
+          await markSwipeTutorialSeen();
+        }}
+      />
     </View>
   );
 }
