@@ -20,6 +20,7 @@ interface CategoryPickerProps {
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
   onCategorySelected?: (categoryId: string) => void;
+  onManageCategories?: () => void;
   multiSelect?: boolean;
   label?: string;
 }
@@ -28,6 +29,7 @@ export function CategoryPicker({
   selectedIds,
   onSelectionChange,
   onCategorySelected,
+  onManageCategories,
   multiSelect = true,
   label = 'Categoría',
 }: CategoryPickerProps) {
@@ -251,6 +253,15 @@ export function CategoryPicker({
         >
           <Ionicons name="add" size={24} color={currentTheme.primary} />
         </TouchableOpacity>
+
+        {onManageCategories && (
+          <TouchableOpacity
+            style={[styles.addCategoryButton, { borderColor: currentTheme.textSecondary, borderStyle: 'solid' }]}
+            onPress={onManageCategories}
+          >
+            <Ionicons name="settings-outline" size={18} color={currentTheme.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Quick Add Category Modal */}

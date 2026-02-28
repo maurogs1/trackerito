@@ -23,13 +23,15 @@ export default function DashboardScreen() {
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const { width } = useWindowDimensions();
   const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1;
-  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense, removeExpense } = useStore();
+  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense, removeExpense, deleteRecurringService } = useStore();
   const { showSuccess, showError } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showMonthCloseModal, setShowMonthCloseModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
+  const [showServiceDeleteModal, setShowServiceDeleteModal] = useState(false);
+  const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showSwipeTutorial, setShowSwipeTutorial] = useState(false);
   const [previousMonthBalance, setPreviousMonthBalance] = useState(0);
   const [carouselPage, setCarouselPage] = useState(0);
@@ -116,6 +118,19 @@ export default function DashboardScreen() {
   const handleDeleteExpense = (id: string) => {
     setExpenseToDelete(id);
     setShowDeleteModal(true);
+  };
+
+  const handleDeleteService = (id: string, name: string) => {
+    setServiceToDelete({ id, name });
+    setShowServiceDeleteModal(true);
+  };
+
+  const confirmDeleteService = async () => {
+    if (!serviceToDelete) return;
+    await deleteRecurringService(serviceToDelete.id);
+    showSuccess(`"${serviceToDelete.name}" eliminado`);
+    setShowServiceDeleteModal(false);
+    setServiceToDelete(null);
   };
 
   const confirmDeleteExpense = async () => {
@@ -911,7 +926,7 @@ export default function DashboardScreen() {
             <View style={styles.sectionHeader}>
               <Text style={[typography.sectionTitle, { color: currentTheme.text }]}>Gastos Fijos Pendientes</Text>
               <TouchableOpacity onPress={() => navigation.navigate('MonthlyPayments')}>
-                <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Ver Todos</Text>
+                <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Ver todo</Text>
               </TouchableOpacity>
             </View>
 
@@ -921,40 +936,41 @@ export default function DashboardScreen() {
                 const isOverdue = service.day_of_month < today;
 
                 return (
-                  <TouchableOpacity
-                    key={service.id}
-                    style={[styles.expenseItem, ]}
-                    onPress={() => navigation.navigate('MonthlyPayments')}
-                    activeOpacity={0.7}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                      <View style={[styles.iconContainer, { backgroundColor: (service.color || '#607D8B') + '20' }]}>
-                        <Ionicons name={(service.icon as any) || 'flash'} size={24} color={service.color || '#607D8B'} />
+                  <SwipeableRow key={service.id} onDelete={() => handleDeleteService(service.id, service.name)}>
+                    <TouchableOpacity
+                      style={[styles.expenseItem]}
+                      onPress={() => navigation.navigate('MonthlyPayments')}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <View style={[styles.iconContainer, { backgroundColor: (service.color || '#607D8B') + '20' }]}>
+                          <Ionicons name={(service.icon as any) || 'flash'} size={24} color={service.color || '#607D8B'} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{service.name}</Text>
+                          <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
+                            Vence el {service.day_of_month} {isOverdue && '• Vencido'}
+                          </Text>
+                        </View>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{service.name}</Text>
-                        <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
-                          Vence el {service.day_of_month} {isOverdue && '• Vencido'}
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={[typography.bodyBold, { color: isOverdue ? currentTheme.error : currentTheme.text }]}>
+                          ${formatCurrencyDisplay(service.estimated_amount)}
                         </Text>
+                        <View style={{
+                          marginTop: spacing.xs,
+                          paddingHorizontal: spacing.sm,
+                          paddingVertical: 2,
+                          backgroundColor: isOverdue ? currentTheme.error + '20' : currentTheme.primary + '20',
+                          borderRadius: borderRadius.sm
+                        }}>
+                          <Text style={[typography.small, { color: isOverdue ? currentTheme.error : currentTheme.primary, fontWeight: '600' }]}>
+                            Pendiente
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[typography.bodyBold, { color: isOverdue ? currentTheme.error : currentTheme.text }]}>
-                        ${formatCurrencyDisplay(service.estimated_amount)}
-                      </Text>
-                      <View style={{
-                        marginTop: spacing.xs,
-                        paddingHorizontal: spacing.sm,
-                        paddingVertical: 2,
-                        backgroundColor: isOverdue ? currentTheme.error + '20' : currentTheme.primary + '20',
-                        borderRadius: borderRadius.sm
-                      }}>
-                        <Text style={[typography.small, { color: isOverdue ? currentTheme.error : currentTheme.primary, fontWeight: '600' }]}>
-                          Pendiente
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                  </SwipeableRow>
                 );
               })}
 
@@ -1061,6 +1077,43 @@ export default function DashboardScreen() {
                     <TouchableOpacity
                       style={{ flex: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: currentTheme.error }}
                       onPress={confirmDeleteExpense}
+                    >
+                      <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Service delete modal */}
+      <Modal visible={showServiceDeleteModal} transparent animationType="fade">
+        <TouchableWithoutFeedback onPress={() => { setShowServiceDeleteModal(false); setServiceToDelete(null); }}>
+          <View style={common.modalOverlayCentered}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }} showsVerticalScrollIndicator={false}>
+                <View style={{ backgroundColor: currentTheme.card, borderRadius: borderRadius.lg, padding: spacing.xxl, width: '85%', maxWidth: 400, alignItems: 'center' }}>
+                  <View style={{ marginBottom: spacing.lg }}>
+                    <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
+                  </View>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
+                    Eliminar Gasto Fijo
+                  </Text>
+                  <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
+                    ¿Querés eliminar "{serviceToDelete?.name}"? Se eliminará de tu lista de gastos fijos.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: spacing.md, width: '100%' }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', backgroundColor: currentTheme.surface, borderWidth: 1, borderColor: currentTheme.border }}
+                      onPress={() => { setShowServiceDeleteModal(false); setServiceToDelete(null); }}
+                    >
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flex: 1, paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', backgroundColor: currentTheme.error }}
+                      onPress={confirmDeleteService}
                     >
                       <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
                     </TouchableOpacity>

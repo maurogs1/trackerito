@@ -1,60 +1,44 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TouchableWithoutFeedback, ScrollView } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../../../shared/hooks/useToast';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../../navigation/AppNavigator';
+import { SwipeableRow } from '../../../shared/components/SwipeableRow';
 
-const ICONS = ['cart', 'game-controller', 'car', 'medical', 'pricetag', 'restaurant', 'cafe', 'fitness', 'school', 'construct', 'airplane', 'home', 'football', 'basketball', 'bicycle'];
-const COLORS = ['#FF5722', '#9C27B0', '#2196F3', '#F44336', '#607D8B', '#4CAF50', '#FFC107', '#E91E63', '#795548', '#3F51B5'];
+type CategoriesNavProp = NativeStackNavigationProp<RootStackParamList, 'Categories'>;
+
+interface CategoryToDelete {
+  id: string;
+  name: string;
+  usageCount: number;
+}
 
 export default function CategoriesScreen() {
-  const { categories, addCategory, removeCategory, preferences } = useStore();
+  const navigation = useNavigation<CategoriesNavProp>();
+  const { categories, removeCategory, preferences } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
   const { showSuccess } = useToast();
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState(ICONS[0]);
-  const [selectedColor, setSelectedColor] = useState(COLORS[0]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<CategoryToDelete | null>(null);
 
-  const handleAddCategory = async () => {
-    if (!newName) {
-      Alert.alert('Error', 'Por favor ingresa un nombre');
-      return;
-    }
-    const newCategory = await addCategory({
-      name: newName,
-      icon: selectedIcon,
-      color: selectedColor,
-    });
-    if (newCategory) {
-      showSuccess(`Categoría "${newName}" creada correctamente`);
-    }
-    setModalVisible(false);
-    setNewName('');
-    setSelectedIcon(ICONS[0]);
-    setSelectedColor(COLORS[0]);
+  const handleDelete = (id: string, name: string, usageCount: number) => {
+    setCategoryToDelete({ id, name, usageCount });
+    setShowDeleteModal(true);
   };
 
-  const handleDeleteCategory = (id: string, name: string) => {
-    Alert.alert(
-      'Eliminar Categoría',
-      `¿Estás seguro de que quieres eliminar "${name}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            await removeCategory(id);
-            showSuccess(`Categoría "${name}" eliminada`);
-          }
-        },
-      ]
-    );
+  const confirmDelete = async () => {
+    if (!categoryToDelete) return;
+    await removeCategory(categoryToDelete.id);
+    showSuccess(`Categoría "${categoryToDelete.name}" eliminada`);
+    setShowDeleteModal(false);
+    setCategoryToDelete(null);
   };
 
   const styles = StyleSheet.create({
@@ -84,36 +68,37 @@ export default function CategoriesScreen() {
       padding: spacing.lg,
       borderRadius: borderRadius.md,
       marginBottom: spacing.md,
-      justifyContent: 'space-between',
+      borderWidth: 1,
+      borderColor: currentTheme.border,
+      gap: spacing.md,
     },
-    categoryInfo: {
-      flexDirection: 'row',
+    categoryMeta: {
+      flex: 1,
+    },
+    usageCount: {
+      fontSize: 11,
+      color: currentTheme.textSecondary,
+      marginTop: 2,
+    },
+    deleteModalContent: {
+      backgroundColor: currentTheme.card,
+      borderRadius: borderRadius.lg,
+      padding: spacing.xxl,
+      width: '85%',
+      maxWidth: 400,
       alignItems: 'center',
-      gap: spacing.md,
     },
-    grid: {
+    deleteModalButtons: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
       gap: spacing.md,
-      marginBottom: spacing.lg,
+      width: '100%',
+      marginTop: spacing.xl,
     },
-    selectionItem: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: 'center',
+    deleteModalButton: {
+      flex: 1,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
-      borderWidth: 2,
-      borderColor: 'transparent',
-    },
-    selectedItem: {
-      borderColor: currentTheme.text,
-    },
-    modalButtons: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      gap: spacing.md,
-      marginTop: spacing.lg,
     },
   });
 
@@ -121,7 +106,7 @@ export default function CategoriesScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={[typography.title, { color: currentTheme.text }]}>Mis Categorías</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('CategoryForm')}>
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
@@ -130,79 +115,68 @@ export default function CategoriesScreen() {
         data={categories}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.categoryItem}>
-            <View style={styles.categoryInfo}>
+          <SwipeableRow onDelete={() => handleDelete(item.id, item.name, item.usageCount ?? 0)}>
+            <TouchableOpacity
+              style={styles.categoryItem}
+              onPress={() => navigation.navigate('CategoryForm', { categoryId: item.id })}
+              activeOpacity={0.7}
+            >
               <View style={[common.iconContainerSmall, { backgroundColor: item.color + '20' }]}>
                 <Ionicons name={item.icon as any} size={20} color={item.color} />
               </View>
-              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{item.name}</Text>
-            </View>
-            <TouchableOpacity
-              style={{ padding: spacing.sm }}
-              onPress={() => handleDeleteCategory(item.id, item.name)}
-            >
-              <Ionicons name="trash-outline" size={20} color={currentTheme.error} />
+              <View style={styles.categoryMeta}>
+                <Text style={[typography.bodyBold, { color: currentTheme.text }]}>{item.name}</Text>
+                <Text style={styles.usageCount}>
+                  {(item.usageCount ?? 0) > 0
+                    ? `${item.usageCount} ${item.usageCount === 1 ? 'gasto' : 'gastos'}`
+                    : 'Sin usos'}
+                </Text>
+              </View>
             </TouchableOpacity>
-          </View>
+          </SwipeableRow>
         )}
       />
 
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={common.modalOverlay}>
-          <View style={common.modalContent}>
-            <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.lg }]}>
-              Nueva Categoría
-            </Text>
-
-            <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
-              Nombre
-            </Text>
-            <TextInput
-              style={common.input}
-              placeholder="Nombre de Categoría"
-              placeholderTextColor={currentTheme.textSecondary}
-              value={newName}
-              onChangeText={setNewName}
-            />
-
-            <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm, marginTop: spacing.lg }]}>
-              Icono
-            </Text>
-            <View style={styles.grid}>
-              {ICONS.map(icon => (
-                <TouchableOpacity
-                  key={icon}
-                  style={[styles.selectionItem, selectedIcon === icon && styles.selectedItem, { backgroundColor: currentTheme.surface }]}
-                  onPress={() => setSelectedIcon(icon)}
-                >
-                  <Ionicons name={icon as any} size={20} color={currentTheme.text} />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>
-              Color
-            </Text>
-            <View style={styles.grid}>
-              {COLORS.map(color => (
-                <TouchableOpacity
-                  key={color}
-                  style={[styles.selectionItem, selectedColor === color && styles.selectedItem, { backgroundColor: color }]}
-                  onPress={() => setSelectedColor(color)}
-                />
-              ))}
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={{ padding: spacing.md }} onPress={() => setModalVisible(false)}>
-                <Text style={[typography.buttonSmall, { color: currentTheme.primary }]}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: spacing.md }} onPress={handleAddCategory}>
-                <Text style={[typography.buttonSmall, { color: currentTheme.primary }]}>Guardar</Text>
-              </TouchableOpacity>
-            </View>
+      {/* Delete confirmation modal */}
+      <Modal visible={showDeleteModal} transparent animationType="fade">
+        <TouchableWithoutFeedback onPress={() => setShowDeleteModal(false)}>
+          <View style={common.modalOverlayCentered}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <ScrollView
+                contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.deleteModalContent}>
+                  <View style={{ marginBottom: spacing.lg }}>
+                    <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
+                  </View>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text, textAlign: 'center', marginBottom: spacing.md }]}>
+                    Eliminar Categoría
+                  </Text>
+                  <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center' }]}>
+                    {categoryToDelete && (categoryToDelete.usageCount > 0)
+                      ? `Esta categoría se usa en ${categoryToDelete.usageCount} ${categoryToDelete.usageCount === 1 ? 'gasto' : 'gastos'}. Los gastos quedarán sin esta categoría.`
+                      : `¿Querés eliminar "${categoryToDelete?.name}"? Esta acción no se puede deshacer.`}
+                  </Text>
+                  <View style={styles.deleteModalButtons}>
+                    <TouchableOpacity
+                      style={[styles.deleteModalButton, { backgroundColor: currentTheme.surface, borderWidth: 1, borderColor: currentTheme.border }]}
+                      onPress={() => setShowDeleteModal(false)}
+                    >
+                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.deleteModalButton, { backgroundColor: currentTheme.error }]}
+                      onPress={confirmDelete}
+                    >
+                      <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );

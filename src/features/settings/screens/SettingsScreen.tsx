@@ -73,21 +73,6 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>General</Text>
-        <View style={styles.row}>
-          <Text style={styles.label}>Moneda</Text>
-          <Text style={styles.value}>{preferences.currency}</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.row, { marginTop: spacing.sm }]}
-          onPress={() => navigation.navigate('Categories')}
-        >
-          <Text style={styles.label}>Gestionar Categorías</Text>
-          <Text style={{ color: currentTheme.primary }}>→</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Cuenta</Text>
         {user?.email && (
           <View style={styles.row}>

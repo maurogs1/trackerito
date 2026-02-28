@@ -11,6 +11,7 @@ import BenefitsScreen from '../features/benefits/screens/BenefitsScreen';
 import SettingsScreen from '../features/settings/screens/SettingsScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
 import CategoriesScreen from '../features/settings/screens/CategoriesScreen';
+import CategoryFormScreen from '../features/settings/screens/CategoryFormScreen';
 import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
 import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
 import AddRecurringServiceScreen from '../features/monthlyPayments/screens/AddRecurringServiceScreen';
@@ -40,6 +41,7 @@ export type RootStackParamList = {
   AddIncome: { incomeId?: string } | undefined;
   WhatsApp: undefined;
   Statistics: undefined;
+  CategoryForm: { categoryId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -180,6 +182,7 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
             <Stack.Screen name="AddIncome" component={AddIncomeScreen} options={{ title: 'Agregar Ingreso' }} />
             <Stack.Screen name="WhatsApp" component={WhatsAppScreen} options={{ title: 'WhatsApp Bot' }} />
             <Stack.Screen name="Statistics" component={StatisticsScreen} options={{ title: 'Estadísticas' }} />
+            <Stack.Screen name="CategoryForm" component={CategoryFormScreen} options={{ title: 'Nueva Categoría' }} />
           </>
         )}
         </Stack.Navigator>
