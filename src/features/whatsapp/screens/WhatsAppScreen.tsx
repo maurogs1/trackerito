@@ -97,24 +97,39 @@ export default function WhatsAppScreen() {
       startCooldown();
       showSuccess('WhatsApp vinculado. Te enviamos un mensaje de bienvenida.');
     } catch (error) {
-      const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL ?? 'undefined';
-      showError(`${BOT_URL} | ${error instanceof Error ? error.message : String(error)}`);
+      const msg = error instanceof Error ? error.message : '';
+      const isDebugUser = userProfile?.user_id === '9fa4531b-2c1f-4002-957a-8113f60a4640';
+      if (isDebugUser) {
+        const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL ?? 'undefined';
+        showError(`[DEBUG] ${BOT_URL} | ${msg}`);
+      } else if (msg === 'network') {
+        showError('El bot no responde. Probá de nuevo en unos minutos.');
+      } else if (msg.startsWith('server:')) {
+        showError('Hubo un problema al enviar el mensaje. Probá de nuevo más tarde.');
+      } else {
+        showError('No se pudo vincular el WhatsApp. Intentá de nuevo.');
+      }
     }
   };
 
   const sendWelcomeMessage = async (phoneNumber: string) => {
     const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL;
     const BOT_API_KEY = process.env.EXPO_PUBLIC_BOT_API_KEY;
-    if (!BOT_URL) throw new Error('Bot URL no configurada');
-    const response = await fetch(`${BOT_URL}/api/send-welcome`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(BOT_API_KEY ? { 'Authorization': `Bearer ${BOT_API_KEY}` } : {}),
-      },
-      body: JSON.stringify({ phoneNumber }),
-    });
-    if (!response.ok) throw new Error(`Bot error: ${response.status}`);
+    if (!BOT_URL) throw new Error('config');
+    let response: Response;
+    try {
+      response = await fetch(`${BOT_URL}/api/send-welcome`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(BOT_API_KEY ? { 'Authorization': `Bearer ${BOT_API_KEY}` } : {}),
+        },
+        body: JSON.stringify({ phoneNumber }),
+      });
+    } catch {
+      throw new Error('network');
+    }
+    if (!response.ok) throw new Error(`server:${response.status}`);
   };
 
   const handleDeletePhone = async () => {
