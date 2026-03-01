@@ -20,7 +20,7 @@
       },
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_BOT_URL": "http://72.61.221.131:3001",
+        "EXPO_PUBLIC_BOT_URL": "https://api.trackerito.com",
         "EXPO_PUBLIC_BOT_API_KEY": "trackerito_bot_2025_xk9m"
       }
     }

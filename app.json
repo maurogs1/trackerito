@@ -20,7 +20,6 @@
       ]
     },
     "android": {
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/trackerito_logo.png",
         "backgroundColor": "#6366F1"
@@ -56,7 +55,6 @@
       }
     },
     "plugins": [
-      "./plugins/withCleartextTraffic",
       [
         "expo-quick-actions",
         {

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eliminar cuenta — Trackerito</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 560px;
+      width: 100%;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+    .logo-circle {
+      width: 40px;
+      height: 40px;
+      background: #6366F1;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .logo-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+    h1 {
+      font-size: 24px;
+      color: #1a1a1a;
+      margin-bottom: 12px;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .info-box {
+      background: #fef3f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 28px;
+    }
+    .info-box p {
+      color: #b91c1c;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .info-box strong { color: #991b1b; }
+    .steps {
+      margin-bottom: 28px;
+    }
+    .steps h2 {
+      font-size: 15px;
+      color: #444;
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+    .step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .step-num {
+      min-width: 26px;
+      height: 26px;
+      background: #6366F1;
+      border-radius: 50%;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-text {
+      color: #555;
+      font-size: 14px;
+      line-height: 1.6;
+      padding-top: 3px;
+    }
+    .email-button {
+      display: block;
+      background: #6366F1;
+      color: white;
+      text-decoration: none;
+      text-align: center;
+      padding: 14px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      margin-bottom: 16px;
+      transition: background 0.2s;
+    }
+    .email-button:hover { background: #4f46e5; }
+    .note {
+      color: #999;
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-circle">T</div>
+      <span class="logo-name">Trackerito</span>
+    </div>
+
+    <h1>Eliminar mi cuenta</h1>
+    <p class="subtitle">
+      Podés solicitar la eliminación completa de tu cuenta y todos tus datos en cualquier momento.
+      El proceso es gratuito y no requiere ninguna justificación.
+    </p>
+
+    <div class="info-box">
+      <p>
+        <strong>⚠️ Esta acción es irreversible.</strong><br>
+        Se eliminarán absolutamente todos tus datos: cuenta, gastos, ingresos, categorías,
+        servicios recurrentes e ingresos registrados. No conservamos ninguna información después de la eliminación.
+      </p>
+    </div>
+
+    <div class="steps">
+      <h2>¿Cómo solicitar la eliminación?</h2>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          Enviá un email a <strong>trackerito.app@gmail.com</strong> con el asunto <strong>"Eliminar cuenta"</strong>.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          Incluí el correo con el que te registraste en Trackerito.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          Procesamos tu solicitud en un plazo máximo de <strong>7 días hábiles</strong> y te confirmamos por email cuando esté lista.
+        </div>
+      </div>
+    </div>
+
+    <a class="email-button" href="mailto:trackerito.app@gmail.com?subject=Eliminar%20cuenta">
+      Enviar solicitud de eliminación
+    </a>
+    <p class="note">
+      Al hacer clic se abre tu cliente de correo con el asunto pre-completado.
+    </p>
+  </div>
+</body>
+</html>
