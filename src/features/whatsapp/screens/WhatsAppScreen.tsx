@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Switch, TouchableOpacity, Alert, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Switch, TouchableOpacity, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { useEffect, useRef, useState } from 'react';
@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { WHATSAPP_USAGE_LIMITS } from '../../settings/types';
 import PhoneInput from '../../../shared/components/PhoneInput';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useToast } from '../../../shared/hooks/useToast';
 
 const COOLDOWN_SECONDS = 60;
 const PHONE_EDIT_TS_KEY = 'phone_last_edit_ts';
@@ -25,6 +26,7 @@ export default function WhatsAppScreen() {
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
+  const { showSuccess, showError } = useToast();
 
   const [phoneInput, setPhoneInput] = useState(userProfile?.phone_number || '');
   const [isEditingPhone, setIsEditingPhone] = useState(false);
@@ -93,9 +95,10 @@ export default function WhatsAppScreen() {
       setIsEditingPhone(false);
       setPhoneError('');
       startCooldown();
-      Alert.alert('¡Listo!', 'Tu WhatsApp fue vinculado. Te enviamos un mensaje de bienvenida al bot.');
+      showSuccess('WhatsApp vinculado. Te enviamos un mensaje de bienvenida.');
     } catch (error) {
-      Alert.alert('Error', 'No se pudo conectar con el bot. Verificá que el número sea correcto e intentá de nuevo.');
+      const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL ?? 'undefined';
+      showError(`${BOT_URL} | ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -122,7 +125,7 @@ export default function WhatsAppScreen() {
       setIsEditingPhone(false);
       startCooldown();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo eliminar el número');
+      showError('No se pudo eliminar el número');
     }
   };
 
@@ -136,7 +139,7 @@ export default function WhatsAppScreen() {
     try {
       await toggleWhatsappNotifications();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo cambiar la configuración');
+      showError('No se pudo cambiar la configuración');
     }
   };
 
