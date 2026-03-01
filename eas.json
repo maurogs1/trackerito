@@ -9,10 +9,18 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_BOT_URL": "https://api.trackerito.com",
+        "EXPO_PUBLIC_BOT_API_KEY": "trackerito_bot_2025_xk9m"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_BOT_URL": "https://api.trackerito.com",
+        "EXPO_PUBLIC_BOT_API_KEY": "trackerito_bot_2025_xk9m"
+      }
     },
     "apk": {
       "android": {
