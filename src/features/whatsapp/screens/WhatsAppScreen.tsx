@@ -88,33 +88,30 @@ export default function WhatsAppScreen() {
       return;
     }
     try {
+      await sendWelcomeMessage(phoneInput);
       await updatePhoneNumber(phoneInput);
       setIsEditingPhone(false);
       setPhoneError('');
-      await sendWelcomeMessage(phoneInput);
       startCooldown();
       Alert.alert('¡Listo!', 'Tu WhatsApp fue vinculado. Te enviamos un mensaje de bienvenida al bot.');
     } catch (error) {
-      Alert.alert('Error', 'No se pudo guardar el número');
+      Alert.alert('Error', 'No se pudo conectar con el bot. Verificá que el número sea correcto e intentá de nuevo.');
     }
   };
 
   const sendWelcomeMessage = async (phoneNumber: string) => {
     const BOT_URL = process.env.EXPO_PUBLIC_BOT_URL;
     const BOT_API_KEY = process.env.EXPO_PUBLIC_BOT_API_KEY;
-    if (!BOT_URL) return;
-    try {
-      await fetch(`${BOT_URL}/api/send-welcome`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(BOT_API_KEY ? { 'Authorization': `Bearer ${BOT_API_KEY}` } : {}),
-        },
-        body: JSON.stringify({ phoneNumber }),
-      });
-    } catch (_e) {
-      // silencioso — el usuario ya vio el Alert de "¡Listo!" y el mensaje de bienvenida llegará igual
-    }
+    if (!BOT_URL) throw new Error('Bot URL no configurada');
+    const response = await fetch(`${BOT_URL}/api/send-welcome`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(BOT_API_KEY ? { 'Authorization': `Bearer ${BOT_API_KEY}` } : {}),
+      },
+      body: JSON.stringify({ phoneNumber }),
+    });
+    if (!response.ok) throw new Error(`Bot error: ${response.status}`);
   };
 
   const handleDeletePhone = async () => {
