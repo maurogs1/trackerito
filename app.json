@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.trackerito.app",
+      "bundleIdentifier": "com.flore.trackerito",
       "associatedDomains": [
         "applinks:trackerito.com"
       ]
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/trackerito_logo.png",
         "backgroundColor": "#6366F1"
       },
-      "package": "com.trackerito.app",
+      "package": "com.flore.trackerito",
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
