@@ -25,6 +25,11 @@
         "backgroundColor": "#6366F1"
       },
       "package": "com.flore.trackerito",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.VIBRATE"
+      ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "intentFilters": [
