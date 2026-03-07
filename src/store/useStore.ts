@@ -12,6 +12,7 @@ import { createDebtsSlice, DebtsSlice } from './slices/debtsSlice';
 import { createBanksSlice, BanksSlice } from './slices/banksSlice';
 import { createRecurringServicesSlice, RecurringServicesSlice } from './slices/recurringServicesSlice';
 import { createIncomeSlice, IncomeSlice } from './slices/incomeSlice';
+import { createIncomeTypesSlice, IncomeTypesSlice } from './slices/incomeTypesSlice';
 import { createPaymentGroupsSlice, PaymentGroupsSlice } from './slices/paymentGroupsSlice';
 import { createUserProfileSlice, UserProfileSlice } from './slices/userProfileSlice';
 
@@ -25,6 +26,7 @@ export type StoreState = AuthSlice &
   BanksSlice &
   RecurringServicesSlice &
   IncomeSlice &
+  IncomeTypesSlice &
   PaymentGroupsSlice &
   UserProfileSlice;
 
@@ -41,6 +43,7 @@ export const useStore = create<StoreState>()(
       ...createBanksSlice(...a),
       ...createRecurringServicesSlice(...a),
       ...createIncomeSlice(...a),
+      ...createIncomeTypesSlice(...a),
       ...createPaymentGroupsSlice(...a),
       ...createUserProfileSlice(...a),
     }),
@@ -58,6 +61,7 @@ export const useStore = create<StoreState>()(
         recurringServices: state.recurringServices,
         servicePayments: state.servicePayments,
         incomes: state.incomes,
+        incomeTypes: state.incomeTypes,
         preferences: state.preferences,
         paymentGroups: state.paymentGroups,
         userProfile: state.userProfile,

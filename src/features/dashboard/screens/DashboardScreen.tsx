@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions, PanResponder, Animated, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, RefreshControl, useWindowDimensions, PanResponder, Animated, Modal } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../../store/useStore';
-import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
+import { theme, typography, spacing, borderRadius, shadows } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useNavigation } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyDisplay } from '../../../shared/utils/currency';
 import { format, parseISO, subMonths, endOfMonth as getEndOfMonth } from 'date-fns';
@@ -22,18 +24,19 @@ const GRID_GAP = 16;
 export default function DashboardScreen() {
   const navigation = useNavigation<DashboardScreenNavigationProp>();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1;
-  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense, removeExpense, deleteRecurringService } = useStore();
-  const { showSuccess, showError } = useToast();
+  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense, removeExpense, deleteRecurringService, markServiceAsPaid } = useStore();
+  const { showToast, showError } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showMonthCloseModal, setShowMonthCloseModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
-  const [showServiceDeleteModal, setShowServiceDeleteModal] = useState(false);
-  const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showSwipeTutorial, setShowSwipeTutorial] = useState(false);
   const [previousMonthBalance, setPreviousMonthBalance] = useState(0);
+  const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
   const [carouselPage, setCarouselPage] = useState(0);
   const carouselPageRef = useRef(0);
   const carouselFade = useRef(new Animated.Value(1)).current;
@@ -73,7 +76,7 @@ export default function DashboardScreen() {
   const balance = getBalance();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
-  const common = createCommonStyles(currentTheme);
+
   const hideIncome = preferences.hideIncome ?? false;
   const hideExpenses = preferences.hideExpenses ?? false;
 
@@ -117,32 +120,47 @@ export default function DashboardScreen() {
 
   const handleDeleteExpense = (id: string) => {
     setExpenseToDelete(id);
-    setShowDeleteModal(true);
-  };
-
-  const handleDeleteService = (id: string, name: string) => {
-    setServiceToDelete({ id, name });
-    setShowServiceDeleteModal(true);
-  };
-
-  const confirmDeleteService = async () => {
-    if (!serviceToDelete) return;
-    await deleteRecurringService(serviceToDelete.id);
-    showSuccess(`"${serviceToDelete.name}" eliminado`);
-    setShowServiceDeleteModal(false);
-    setServiceToDelete(null);
   };
 
   const confirmDeleteExpense = async () => {
     if (!expenseToDelete) return;
     try {
       await removeExpense(expenseToDelete);
-      showSuccess('Gasto eliminado');
+      showToast({ message: 'Gasto eliminado', type: 'success', duration: 3000 });
     } catch {
       showError('No se pudo eliminar el gasto');
     } finally {
-      setShowDeleteModal(false);
       setExpenseToDelete(null);
+    }
+  };
+
+  const handleDeleteService = (id: string, name: string) => {
+    setServiceToDelete({ id, name });
+  };
+
+  const confirmDeleteService = async () => {
+    if (!serviceToDelete) return;
+    try {
+      await deleteRecurringService(serviceToDelete.id);
+      showToast({ message: `"${serviceToDelete.name}" eliminado`, type: 'success', duration: 3000 });
+    } catch {
+      showError('No se pudo eliminar el gasto fijo');
+    } finally {
+      setServiceToDelete(null);
+    }
+  };
+
+  const handleMarkServicePaid = async (serviceId: string, amount: number) => {
+    if (markingPaidId) return;
+    setMarkingPaidId(serviceId);
+    try {
+      const now = new Date();
+      await markServiceAsPaid(serviceId, now.getMonth() + 1, now.getFullYear(), amount);
+      showToast({ message: 'Marcado como pagado', type: 'success', duration: 2500 });
+    } catch {
+      showError('No se pudo marcar como pagado');
+    } finally {
+      setMarkingPaidId(null);
     }
   };
 
@@ -237,15 +255,12 @@ export default function DashboardScreen() {
 
   const topCategory = useMemo(() => {
     const categoryTotals: Record<string, number> = {};
-    const currentMonth = new Date().getMonth();
 
     currentExpenses.forEach(e => {
-      if (new Date(e.date).getMonth() === currentMonth) {
-        if (e.categoryIds && e.categoryIds.length > 0) {
-          e.categoryIds.forEach(catId => {
-            categoryTotals[catId] = (categoryTotals[catId] || 0) + e.amount;
-          });
-        }
+      if (e.categoryIds && e.categoryIds.length > 0) {
+        e.categoryIds.forEach(catId => {
+          categoryTotals[catId] = (categoryTotals[catId] || 0) + e.amount;
+        });
       }
     });
 
@@ -265,10 +280,9 @@ export default function DashboardScreen() {
 
   const tips = useMemo(() => {
     const tipsList: { icon: string; title: string; description: string; color: string }[] = [];
-    const currentMonth = new Date().getMonth();
 
-    // Filter current month expenses
-    const monthExpenses = currentExpenses.filter(e => new Date(e.date).getMonth() === currentMonth);
+    // currentExpenses is already filtered by selectedMonth
+    const monthExpenses = currentExpenses;
 
     if (monthExpenses.length === 0) {
       tipsList.push({
@@ -400,8 +414,8 @@ export default function DashboardScreen() {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: spacing.xxl,
-      marginTop: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      paddingBottom: spacing.lg,
     },
     avatar: {
       width: 48,
@@ -463,11 +477,11 @@ export default function DashboardScreen() {
     fab: {
       position: 'absolute',
       right: spacing.xl,
-      bottom: 30,
+      bottom: 16,
       backgroundColor: currentTheme.primary,
-      width: 64,
-      height: 64,
-      borderRadius: 32,
+      width: 54,
+      height: 54,
+      borderRadius: 27,
       justifyContent: 'center',
       alignItems: 'center',
       ...shadows.lg,
@@ -505,27 +519,29 @@ export default function DashboardScreen() {
     },
   });
 
+  const firstName = (user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Invitado').split(' ')[0];
+  const avatarUri = user?.user_metadata?.avatar_url ||
+    user?.user_metadata?.picture ||
+    (user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado');
+
+  const stickyHeader = (
+    <View style={[styles.header, { paddingTop: insets.top + spacing.sm, backgroundColor: currentTheme.background }]}>
+      <View>
+        <Text style={[typography.title, { color: currentTheme.text }]}>
+          Hola, {firstName}
+        </Text>
+      </View>
+      <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+        <Image source={{ uri: avatarUri }} style={styles.avatar} />
+      </TouchableOpacity>
+    </View>
+  );
+
   if (isLoading && expenses.length === 0) {
     return (
       <View style={{ flex: 1, backgroundColor: currentTheme.background }}>
-        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 10 }}>
-          <View style={styles.header}>
-            <View>
-              <Text style={[typography.title, { color: currentTheme.text }]}>
-                Hola, {(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Invitado').split(' ')[0]}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-              <Image
-                source={{
-                  uri: user?.user_metadata?.avatar_url ||
-                    user?.user_metadata?.picture ||
-                    (user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado')
-                }}
-                style={styles.avatar}
-              />
-            </TouchableOpacity>
-          </View>
+        {stickyHeader}
+        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: tabBarHeight + 80 }}>
           <DashboardSkeleton isDark={isDark} />
         </ScrollView>
       </View>
@@ -533,10 +549,11 @@ export default function DashboardScreen() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: currentTheme.background }}>
+      {stickyHeader}
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: 10 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 80 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -546,29 +563,11 @@ export default function DashboardScreen() {
           />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[typography.title, { color: currentTheme.text }]}>
-              Hola, {(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Invitado').split(' ')[0]}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-            <Image
-              source={{
-                uri: user?.user_metadata?.avatar_url ||
-                  user?.user_metadata?.picture ||
-                  (user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado')
-              }}
-              style={styles.avatar}
-            />
-          </TouchableOpacity>
-        </View>
 
         {/* Main Balance Card */}
         <TouchableOpacity
           style={[styles.mainCard, { backgroundColor: balance.balance >= 0 ? currentTheme.primary : currentTheme.error }]}
-          onPress={() => navigation.navigate('Income')}
+          onPress={() => navigation.navigate('Statistics')}
           activeOpacity={0.9}
         >
           <View style={{ position: 'absolute', top: 16, right: 16, flexDirection: 'row', gap: 8 }}>
@@ -671,6 +670,12 @@ export default function DashboardScreen() {
               <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>+ Agregar ingresos</Text>
             </TouchableOpacity>
           )}
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: spacing.lg, opacity: 0.6 }}>
+            <Ionicons name="stats-chart-outline" size={13} color="#FFFFFF" />
+            <Text style={[typography.small, { color: '#FFFFFF', marginLeft: 4 }]}>Ver estadísticas</Text>
+            <Ionicons name="chevron-forward" size={13} color="#FFFFFF" />
+          </View>
         </TouchableOpacity>
 
         {/* Insights Carousel */}
@@ -837,36 +842,6 @@ export default function DashboardScreen() {
           contentContainerStyle={{ paddingRight: spacing.lg, gap: spacing.md }}
           style={{ marginBottom: spacing.xxl }}
         >
-          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('MonthlyPayments')}>
-            <View style={[styles.carouselIcon, { backgroundColor: '#F44336' }]}>
-              <Ionicons name="flash" size={20} color="#FFF" />
-            </View>
-            <View>
-              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Gastos Fijos</Text>
-              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Servicios y más</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('WhatsApp')}>
-            <View style={[styles.carouselIcon, { backgroundColor: '#25D366' }]}>
-              <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
-            </View>
-            <View>
-              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>WhatsApp</Text>
-              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Bot y puntos</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('AllExpenses')}>
-            <View style={[styles.carouselIcon, { backgroundColor: '#2196F3' }]}>
-              <Ionicons name="list" size={20} color="#FFF" />
-            </View>
-            <View>
-              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Mis Gastos</Text>
-              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Ver historial</Text>
-            </View>
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('Statistics')}>
             <View style={[styles.carouselIcon, { backgroundColor: '#FF5722' }]}>
               <Ionicons name="stats-chart" size={20} color="#FFF" />
@@ -877,6 +852,16 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('MonthlyPayments')}>
+            <View style={[styles.carouselIcon, { backgroundColor: '#F44336' }]}>
+              <Ionicons name="flash" size={20} color="#FFF" />
+            </View>
+            <View>
+              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Gastos Fijos</Text>
+              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Servicios y más</Text>
+            </View>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('FinancialEducation')}>
             <View style={[styles.carouselIcon, { backgroundColor: '#9C27B0' }]}>
               <Ionicons name="school" size={20} color="#FFF" />
@@ -884,6 +869,16 @@ export default function DashboardScreen() {
             <View>
               <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Educación</Text>
               <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Aprende más</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.carouselCard} onPress={() => navigation.navigate('WhatsApp')}>
+            <View style={[styles.carouselIcon, { backgroundColor: '#25D366' }]}>
+              <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
+            </View>
+            <View>
+              <Text style={[typography.bodyBold, { color: currentTheme.text }]}>WhatsApp</Text>
+              <Text style={[typography.small, { color: currentTheme.textSecondary }]}>Bot y puntos</Text>
             </View>
           </TouchableOpacity>
         </ScrollView>
@@ -953,21 +948,31 @@ export default function DashboardScreen() {
                           </Text>
                         </View>
                       </View>
-                      <View style={{ alignItems: 'flex-end' }}>
+                      <View style={{ alignItems: 'flex-end', gap: spacing.xs }}>
                         <Text style={[typography.bodyBold, { color: isOverdue ? currentTheme.error : currentTheme.text }]}>
                           ${formatCurrencyDisplay(service.estimated_amount)}
                         </Text>
-                        <View style={{
-                          marginTop: spacing.xs,
-                          paddingHorizontal: spacing.sm,
-                          paddingVertical: 2,
-                          backgroundColor: isOverdue ? currentTheme.error + '20' : currentTheme.primary + '20',
-                          borderRadius: borderRadius.sm
-                        }}>
-                          <Text style={[typography.small, { color: isOverdue ? currentTheme.error : currentTheme.primary, fontWeight: '600' }]}>
-                            Pendiente
+                        <TouchableOpacity
+                          onPress={(e) => { e.stopPropagation(); handleMarkServicePaid(service.id, service.estimated_amount); }}
+                          disabled={markingPaidId === service.id}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4,
+                            paddingHorizontal: spacing.sm,
+                            paddingVertical: 3,
+                            backgroundColor: currentTheme.success + '20',
+                            borderRadius: borderRadius.sm,
+                            borderWidth: 1,
+                            borderColor: currentTheme.success + '40',
+                            opacity: markingPaidId === service.id ? 0.5 : 1,
+                          }}
+                        >
+                          <Ionicons name="checkmark" size={12} color={currentTheme.success} />
+                          <Text style={[typography.small, { color: currentTheme.success, fontWeight: '600' }]}>
+                            {markingPaidId === service.id ? '...' : 'Pagar'}
                           </Text>
-                        </View>
+                        </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
                   </SwipeableRow>
@@ -991,9 +996,11 @@ export default function DashboardScreen() {
         {/* Recent Expenses */}
         <View style={styles.sectionHeader}>
           <Text style={[typography.sectionTitle, { color: currentTheme.text }]}>Actividad Reciente</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('AllExpenses')}>
-            <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Ver Todo</Text>
-          </TouchableOpacity>
+          {currentExpenses.length > 0 && (
+            <TouchableOpacity onPress={() => navigation.navigate('AllExpenses')}>
+              <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Ver Todo</Text>
+            </TouchableOpacity>
+          )}
         </View>
         {currentExpenses.slice(0, 5).map((expense) => {
           const primaryCatId = expense.categoryIds?.[0];
@@ -1003,7 +1010,7 @@ export default function DashboardScreen() {
           return (
             <View key={expense.id} style={{ marginBottom: spacing.sm }}>
               <SwipeableRow onDelete={() => handleDeleteExpense(expense.id)}>
-                <View style={[styles.expenseItem, { marginBottom: 0 }]}>
+                <TouchableOpacity style={[styles.expenseItem, { marginBottom: 0 }]} onPress={() => navigation.navigate('AddExpense', { expenseId: expense.id })} activeOpacity={0.7}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                     <View style={[styles.iconContainer, { backgroundColor: (category.color || '#999') + '20' }]}>
                       <Ionicons name={category.icon as any} size={24} color={category.color} />
@@ -1021,7 +1028,7 @@ export default function DashboardScreen() {
                       {format(parseISO(expense.date), 'd MMM yyyy', { locale: es })}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               </SwipeableRow>
             </View>
           );
@@ -1029,7 +1036,7 @@ export default function DashboardScreen() {
       </ScrollView>
 
       <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('AddExpense')}>
-        <Ionicons name="add" size={32} color="#FFFFFF" />
+        <Ionicons name="add" size={26} color="#FFFFFF" />
       </TouchableOpacity>
 
       {/* Modal de cierre de mes */}
@@ -1043,88 +1050,6 @@ export default function DashboardScreen() {
         onStartFresh={handleStartFresh}
       />
 
-      {/* Modal confirmación de eliminación */}
-      <Modal
-        visible={showDeleteModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { setShowDeleteModal(false); setExpenseToDelete(null); }}
-      >
-        <TouchableWithoutFeedback onPress={() => { setShowDeleteModal(false); setExpenseToDelete(null); }}>
-          <View style={common.modalOverlayCentered}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <ScrollView
-                contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
-                showsVerticalScrollIndicator={false}
-              >
-                <View style={{ backgroundColor: currentTheme.card, borderRadius: borderRadius.lg, padding: spacing.xxl, width: '85%', maxWidth: 400, alignItems: 'center' }}>
-                  <View style={{ marginBottom: spacing.lg }}>
-                    <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
-                  </View>
-                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
-                    Eliminar Gasto
-                  </Text>
-                  <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
-                    ¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: spacing.md, width: '100%' }}>
-                    <TouchableOpacity
-                      style={{ flex: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: currentTheme.surface, borderWidth: 1, borderColor: currentTheme.border }}
-                      onPress={() => { setShowDeleteModal(false); setExpenseToDelete(null); }}
-                    >
-                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ flex: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: currentTheme.error }}
-                      onPress={confirmDeleteExpense}
-                    >
-                      <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </ScrollView>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
-      {/* Service delete modal */}
-      <Modal visible={showServiceDeleteModal} transparent animationType="fade">
-        <TouchableWithoutFeedback onPress={() => { setShowServiceDeleteModal(false); setServiceToDelete(null); }}>
-          <View style={common.modalOverlayCentered}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }} showsVerticalScrollIndicator={false}>
-                <View style={{ backgroundColor: currentTheme.card, borderRadius: borderRadius.lg, padding: spacing.xxl, width: '85%', maxWidth: 400, alignItems: 'center' }}>
-                  <View style={{ marginBottom: spacing.lg }}>
-                    <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
-                  </View>
-                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
-                    Eliminar Gasto Fijo
-                  </Text>
-                  <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
-                    ¿Querés eliminar "{serviceToDelete?.name}"? Se eliminará de tu lista de gastos fijos.
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: spacing.md, width: '100%' }}>
-                    <TouchableOpacity
-                      style={{ flex: 1, paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', backgroundColor: currentTheme.surface, borderWidth: 1, borderColor: currentTheme.border }}
-                      onPress={() => { setShowServiceDeleteModal(false); setServiceToDelete(null); }}
-                    >
-                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ flex: 1, paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', backgroundColor: currentTheme.error }}
-                      onPress={confirmDeleteService}
-                    >
-                      <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </ScrollView>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
       <SwipeTutorialOverlay
         visible={showSwipeTutorial}
         onDismiss={async () => {
@@ -1132,6 +1057,52 @@ export default function DashboardScreen() {
           await markSwipeTutorialSeen();
         }}
       />
+
+      {/* Modal confirmación eliminar gasto */}
+      <Modal visible={!!expenseToDelete} transparent animationType="fade" onRequestClose={() => setExpenseToDelete(null)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: spacing.xl }} activeOpacity={1} onPress={() => setExpenseToDelete(null)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={{ backgroundColor: currentTheme.card, borderRadius: borderRadius.lg, padding: spacing.xl, width: 300, borderWidth: 1, borderColor: currentTheme.border, alignItems: 'center' }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: currentTheme.error + '20', justifyContent: 'center', alignItems: 'center', marginBottom: spacing.lg }}>
+                <Ionicons name="alert-circle" size={32} color={currentTheme.error} />
+              </View>
+              <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.sm, textAlign: 'center' }]}>Eliminar gasto</Text>
+              <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.xl, textAlign: 'center' }]}>¿Estás seguro de que querés eliminar este gasto? Esta acción no se puede revertir.</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.md, width: '100%' }}>
+                <TouchableOpacity style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: currentTheme.border, alignItems: 'center' }} onPress={() => setExpenseToDelete(null)}>
+                  <Text style={[typography.body, { color: currentTheme.text }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: currentTheme.error, alignItems: 'center' }} onPress={confirmDeleteExpense}>
+                  <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal confirmación eliminar gasto fijo */}
+      <Modal visible={!!serviceToDelete} transparent animationType="fade" onRequestClose={() => setServiceToDelete(null)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: spacing.xl }} activeOpacity={1} onPress={() => setServiceToDelete(null)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={{ backgroundColor: currentTheme.card, borderRadius: borderRadius.lg, padding: spacing.xl, width: 300, borderWidth: 1, borderColor: currentTheme.border, alignItems: 'center' }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: currentTheme.error + '20', justifyContent: 'center', alignItems: 'center', marginBottom: spacing.lg }}>
+                <Ionicons name="alert-circle" size={32} color={currentTheme.error} />
+              </View>
+              <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.sm, textAlign: 'center' }]}>Eliminar gasto fijo</Text>
+              <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.xl, textAlign: 'center' }]}>¿Estás seguro de que querés eliminar "{serviceToDelete?.name}"? Esta acción no se puede revertir.</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.md, width: '100%' }}>
+                <TouchableOpacity style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: currentTheme.border, alignItems: 'center' }} onPress={() => setServiceToDelete(null)}>
+                  <Text style={[typography.body, { color: currentTheme.text }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: currentTheme.error, alignItems: 'center' }} onPress={confirmDeleteService}>
+                  <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }

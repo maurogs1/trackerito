@@ -3,20 +3,19 @@ import { NavigationContainer, DefaultTheme, DarkTheme, NavigationContainerRef } 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useStore } from '../store/useStore';
 import { theme } from '../shared/theme';
-import DashboardScreen from '../features/dashboard/screens/DashboardScreen';
+import TabNavigator from './TabNavigator';
 import AddExpenseScreen from '../features/expenses/screens/AddExpenseScreen';
-import AllExpensesScreen from '../features/expenses/screens/AllExpensesScreen';
 import FinancialEducationScreen from '../features/education/screens/FinancialEducationScreen';
 import BenefitsScreen from '../features/benefits/screens/BenefitsScreen';
-import SettingsScreen from '../features/settings/screens/SettingsScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
 import CategoriesScreen from '../features/settings/screens/CategoriesScreen';
 import CategoryFormScreen from '../features/settings/screens/CategoryFormScreen';
+import IncomeTypesScreen from '../features/settings/screens/IncomeTypesScreen';
+import IncomeTypeFormScreen from '../features/settings/screens/IncomeTypeFormScreen';
 import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
 import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
 import AddRecurringServiceScreen from '../features/monthlyPayments/screens/AddRecurringServiceScreen';
 import PaymentGroupsScreen from '../features/monthlyPayments/screens/PaymentGroupsScreen';
-import IncomeScreen from '../features/income/screens/IncomeScreen';
 import AddIncomeScreen from '../features/income/screens/AddIncomeScreen';
 import WhatsAppScreen from '../features/whatsapp/screens/WhatsAppScreen';
 import StatisticsScreen from '../features/statistics/screens/StatisticsScreen';
@@ -26,22 +25,27 @@ import { useToast } from '../shared/hooks/useToast';
 
 export type RootStackParamList = {
   Login: undefined;
+  MainTabs: undefined;
+  // Tab screens — kept for type compatibility with existing navigation calls
   Dashboard: undefined;
-  AddExpense: { expenseId?: string; amount?: number; description?: string } | undefined;
-  Settings: undefined;
-  Categories: undefined;
   AllExpenses: undefined;
+  Income: undefined;
+  Settings: undefined;
+  // Stack screens
+  AddExpense: { expenseId?: string; amount?: number; description?: string } | undefined;
+  Categories: undefined;
   FinancialEducation: undefined;
   Benefits: undefined;
   MonthlyPayments: undefined;
   RecurringServices: undefined;
   AddRecurringService: { serviceId?: string; prefilledName?: string; prefilledIcon?: string; prefilledColor?: string; prefilledAmount?: number; prefilledDay?: number } | undefined;
   PaymentGroups: undefined;
-  Income: undefined;
   AddIncome: { incomeId?: string } | undefined;
   WhatsApp: undefined;
   Statistics: undefined;
   CategoryForm: { categoryId?: string } | undefined;
+  IncomeTypes: undefined;
+  IncomeTypeForm: { incomeTypeId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -140,19 +144,14 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
         ) : (
           <>
             <Stack.Screen
-              name="Dashboard"
-              component={DashboardScreen}
+              name="MainTabs"
+              component={TabNavigator}
               options={{ headerShown: false }}
             />
             <Stack.Screen
               name="AddExpense"
               component={AddExpenseScreen}
               options={{ title: 'Agregar Gasto' }}
-            />
-            <Stack.Screen
-              name="Settings"
-              component={SettingsScreen}
-              options={{ title: 'Configuración' }}
             />
             <Stack.Screen
               name="Benefits"
@@ -165,11 +164,6 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
               options={{ title: 'Categorías' }}
             />
             <Stack.Screen
-              name="AllExpenses"
-              component={AllExpensesScreen}
-              options={{ title: 'Todos los Gastos' }}
-            />
-            <Stack.Screen
               name="FinancialEducation"
               component={FinancialEducationScreen}
               options={{ title: 'Educación Financiera' }}
@@ -178,11 +172,12 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
             <Stack.Screen name="RecurringServices" component={RecurringServicesScreen} options={{ title: 'Gastos Fijos' }} />
             <Stack.Screen name="AddRecurringService" component={AddRecurringServiceScreen} options={{ title: 'Agregar Gasto Fijo' }} />
             <Stack.Screen name="PaymentGroups" component={PaymentGroupsScreen} options={{ title: 'Grupos de Pago' }} />
-            <Stack.Screen name="Income" component={IncomeScreen} options={{ title: 'Mis Ingresos' }} />
             <Stack.Screen name="AddIncome" component={AddIncomeScreen} options={{ title: 'Agregar Ingreso' }} />
             <Stack.Screen name="WhatsApp" component={WhatsAppScreen} options={{ title: 'WhatsApp Bot' }} />
             <Stack.Screen name="Statistics" component={StatisticsScreen} options={{ title: 'Estadísticas' }} />
             <Stack.Screen name="CategoryForm" component={CategoryFormScreen} options={{ title: 'Nueva Categoría' }} />
+            <Stack.Screen name="IncomeTypes" component={IncomeTypesScreen} options={{ title: 'Tipos de Ingreso' }} />
+            <Stack.Screen name="IncomeTypeForm" component={IncomeTypeFormScreen} options={{ title: 'Nuevo Tipo' }} />
           </>
         )}
         </Stack.Navigator>

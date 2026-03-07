@@ -17,9 +17,9 @@ export interface ExpensesSlice {
   updateExpense: (id: string, expense: Partial<Omit<Expense, 'id' | 'createdAt'>>) => Promise<void>;
   removeExpense: (id: string) => Promise<void>;
   getExpenseInstallments: (parentExpenseId: string) => Expense[];
-  getCurrentExpenses: () => Expense[];
+  getCurrentExpenses: (date?: Date) => Expense[];
   getUpcomingExpenses: () => Expense[];
-  getSummary: () => ExpenseSummary;
+  getSummary: (date?: Date) => ExpenseSummary;
 }
 
 export const createExpensesSlice: StateCreator<
@@ -688,7 +688,7 @@ export const createExpensesSlice: StateCreator<
       .sort((a, b) => (a.installmentNumber || 0) - (b.installmentNumber || 0));
   },
 
-  getCurrentExpenses: () => {
+  getCurrentExpenses: (date?: Date) => {
     const { expenses } = get();
     const now = new Date();
 
@@ -701,6 +701,11 @@ export const createExpensesSlice: StateCreator<
       // Excluir gastos futuros pendientes
       const expenseDate = new Date(e.date);
       if (e.paymentStatus === 'pending' && expenseDate > now) {
+        return false;
+      }
+
+      // Filtrar por mes si se especificó una fecha
+      if (date && !isSameMonth(expenseDate, date)) {
         return false;
       }
 
@@ -724,21 +729,17 @@ export const createExpensesSlice: StateCreator<
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   },
 
-  getSummary: () => {
-    const now = new Date();
+  getSummary: (date?: Date) => {
+    const now = date || new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     const state = get() as any;
 
-    // Usar getCurrentExpenses para excluir gastos padre y futuros
-    const validExpenses = get().getCurrentExpenses();
+    // Usar getCurrentExpenses para excluir gastos padre y futuros, filtrado por mes
+    const validExpenses = get().getCurrentExpenses(now);
 
-    const currentMonthExpenses = validExpenses.filter((e) =>
-      isSameMonth(new Date(e.date), now)
-    );
-    const previousMonthExpenses = validExpenses.filter((e) =>
-      isSameMonth(new Date(e.date), subMonths(now, 1))
-    );
+    const currentMonthExpenses = validExpenses;
+    const previousMonthExpenses = get().getCurrentExpenses(subMonths(now, 1));
 
     const totalBalance = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
     const previousMonthBalance = previousMonthExpenses.reduce(

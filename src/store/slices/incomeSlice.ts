@@ -20,7 +20,7 @@ export interface IncomeSlice {
   getMonthlyIncome: (month?: Date) => number;
   getMonthlyIncomeBreakdown: (month?: Date) => MonthlyIncomeBreakdown;
   getRecurringIncomes: () => Income[];
-  getBalance: () => {
+  getBalance: (date?: Date) => {
     totalIncome: number;
     confirmedIncome: number;
     pendingIncome: number;
@@ -263,15 +263,15 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
     return incomes.filter((inc) => inc.isRecurring);
   },
 
-  getBalance: () => {
+  getBalance: (date?: Date) => {
     const state = get() as any;
-    const now = new Date();
+    const now = date || new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     const today = now.getDate();
 
     // Breakdown de ingresos del mes (confirmados vs pendientes)
-    const incomeBreakdown = get().getMonthlyIncomeBreakdown(now);
+    const incomeBreakdown = get().getMonthlyIncomeBreakdown(now as Date);
     const confirmedIncome = incomeBreakdown.confirmed;
     const pendingIncome = incomeBreakdown.pending;
 
@@ -282,8 +282,8 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
     const totalIncome = confirmedIncome + carryover;
 
     // Total de gastos del mes (usar getCurrentExpenses si existe)
-    const currentExpenses = state.getCurrentExpenses?.() || state.expenses || [];
-    const monthlyExpenses = currentExpenses.filter((e: any) => isSameMonth(new Date(e.date), now));
+    const currentExpenses = state.getCurrentExpenses?.(now) || state.expenses || [];
+    const monthlyExpenses = currentExpenses;
     const totalExpenses = monthlyExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
 
     // Calcular servicios recurrentes pendientes del mes

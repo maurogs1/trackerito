@@ -500,7 +500,7 @@ export default function FinancialEducationScreen() {
         </View>
       )}
 
-      <TouchableOpacity style={[common.buttonPrimary, { marginTop: spacing.xxl }]} onPress={() => navigation.navigate('Dashboard')}>
+      <TouchableOpacity style={[common.buttonPrimary, { marginTop: spacing.xxl }]} onPress={() => navigation.navigate('MainTabs')}>
         <Text style={common.buttonPrimaryText}>Ver mi Dashboard</Text>
       </TouchableOpacity>
     </ScrollView>

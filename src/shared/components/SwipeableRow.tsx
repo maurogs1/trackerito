@@ -10,6 +10,8 @@ interface SwipeableRowProps {
 
 export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
   const translateX = useRef(new Animated.Value(0)).current;
+  const onDeleteRef = useRef(onDelete);
+  onDeleteRef.current = onDelete;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -23,16 +25,14 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        // Always reset to original position
         Animated.spring(translateX, {
           toValue: 0,
           useNativeDriver: true,
           bounciness: 5,
         }).start();
 
-        // If swiped past threshold, trigger delete callback (shows modal)
         if (gestureState.dx < SWIPE_THRESHOLD) {
-          onDelete();
+          onDeleteRef.current();
         }
       },
     })

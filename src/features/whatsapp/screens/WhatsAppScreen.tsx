@@ -240,6 +240,12 @@ export default function WhatsAppScreen() {
       ...typography.captionBold,
       color: currentTheme.primary,
     },
+    howToRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'flex-start' as const,
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+    },
     errorText: {
       ...typography.caption,
       color: currentTheme.error,
@@ -398,6 +404,29 @@ export default function WhatsAppScreen() {
         <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>
           Los puntos se renuevan todos los dias a las 00:00
         </Text>
+      </View>
+
+      {/* How to use */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Cómo usar el bot</Text>
+        {[
+          { icon: 'cash-outline' as const,      label: 'Gasto',       example: '"500 super" · "1200 farmacia ayer"' },
+          { icon: 'trending-up-outline' as const, label: 'Ingreso',    example: '"cobré 50000 sueldo" · "me pagaron 20000"' },
+          { icon: 'repeat-outline' as const,    label: 'Gasto fijo',  example: '"!fijo alquiler 425000" · "vence todos los 5"' },
+          { icon: 'pricetag-outline' as const,  label: 'Categoría',   example: '"500 super #supermercado"' },
+          { icon: 'mic-outline' as const,       label: 'Audio',       example: 'Mandá un mensaje de voz' },
+        ].map((item, i, arr) => (
+          <View key={item.label}>
+            <View style={styles.howToRow}>
+              <Ionicons name={item.icon} size={18} color={currentTheme.primary} style={{ marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[typography.captionBold, { color: currentTheme.text }]}>{item.label}</Text>
+                <Text style={[typography.caption, { color: currentTheme.textSecondary }]}>{item.example}</Text>
+              </View>
+            </View>
+            {i < arr.length - 1 && <View style={styles.divider} />}
+          </View>
+        ))}
       </View>
 
       {/* Config */}

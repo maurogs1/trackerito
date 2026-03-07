@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,7 +8,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrencyInput, parseCurrencyInput } from '../../../shared/utils/currency';
 import { useToast } from '../../../shared/hooks/useToast';
-import { IncomeType, RecurringFrequency, INCOME_TYPE_LABELS, INCOME_TYPE_ICONS, INCOME_TYPE_COLORS, FREQUENCY_LABELS } from '../types';
+import { RecurringFrequency, FREQUENCY_LABELS } from '../types';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -19,7 +19,7 @@ type AddIncomeRouteProp = RouteProp<RootStackParamList, 'AddIncome'>;
 export default function AddIncomeScreen() {
   const navigation = useNavigation<AddIncomeNavigationProp>();
   const route = useRoute<AddIncomeRouteProp>();
-  const { incomes, addIncome, updateIncome, preferences } = useStore();
+  const { incomes, addIncome, updateIncome, incomeTypes, loadIncomeTypes, preferences } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
@@ -30,7 +30,7 @@ export default function AddIncomeScreen() {
 
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedType, setSelectedType] = useState<IncomeType>('salary');
+  const [selectedType, setSelectedType] = useState<string>('');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
@@ -39,6 +39,17 @@ export default function AddIncomeScreen() {
   const [isAmountFocused, setIsAmountFocused] = useState(false);
   const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
   const [isDayFocused, setIsDayFocused] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    loadIncomeTypes();
+  }, []);
+
+  useEffect(() => {
+    if (!isEditing && incomeTypes.length > 0 && !selectedType) {
+      setSelectedType(incomeTypes[0].id);
+    }
+  }, [incomeTypes]);
 
   useEffect(() => {
     if (isEditing && incomeId) {
@@ -84,6 +95,7 @@ export default function AddIncomeScreen() {
       return;
     }
 
+    setIsSaving(true);
     try {
       if (isEditing && incomeId) {
         await updateIncome(incomeId, {
@@ -111,6 +123,8 @@ export default function AddIncomeScreen() {
       navigation.goBack();
     } catch (error: any) {
       showError(error.message || 'Error al guardar');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -235,24 +249,21 @@ export default function AddIncomeScreen() {
 
         <Text style={styles.label}>Tipo de ingreso</Text>
         <View style={styles.typeGrid}>
-          {(Object.keys(INCOME_TYPE_LABELS) as IncomeType[]).map((type) => {
-            const isSelected = selectedType === type;
-            const color = INCOME_TYPE_COLORS[type];
-            const icon = INCOME_TYPE_ICONS[type];
-            const label = INCOME_TYPE_LABELS[type];
+          {incomeTypes.map((incomeType) => {
+            const isSelected = selectedType === incomeType.id;
             return (
               <TouchableOpacity
-                key={type}
+                key={incomeType.id}
                 style={[
                   styles.typeButton,
                   isSelected && styles.typeButtonSelected,
-                  isSelected && { backgroundColor: color + '20', borderColor: color }
+                  isSelected && { backgroundColor: incomeType.color + '20', borderColor: incomeType.color }
                 ]}
-                onPress={() => setSelectedType(type)}
+                onPress={() => setSelectedType(incomeType.id)}
               >
-                <Ionicons name={icon as any} size={20} color={isSelected ? color : currentTheme.textSecondary} />
-                <Text style={[typography.body, { color: isSelected ? color : currentTheme.text, fontSize: 13 }]}>
-                  {label}
+                <Ionicons name={incomeType.icon as any} size={20} color={isSelected ? incomeType.color : currentTheme.textSecondary} />
+                <Text style={[typography.body, { color: isSelected ? incomeType.color : currentTheme.text, fontSize: 13 }]}>
+                  {incomeType.name}
                 </Text>
               </TouchableOpacity>
             );
@@ -401,10 +412,11 @@ export default function AddIncomeScreen() {
           </View>
         )}
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={[typography.button, { color: '#FFFFFF' }]}>
-            {isEditing ? 'Actualizar' : 'Guardar'}
-          </Text>
+        <TouchableOpacity style={[styles.saveButton, { opacity: isSaving ? 0.7 : 1 }]} onPress={handleSave} disabled={isSaving}>
+          {isSaving
+            ? <ActivityIndicator color="#FFFFFF" size="small" />
+            : <Text style={[typography.button, { color: '#FFFFFF' }]}>{isEditing ? 'Actualizar' : 'Guardar'}</Text>
+          }
         </TouchableOpacity>
       </ScrollView>
     </View>

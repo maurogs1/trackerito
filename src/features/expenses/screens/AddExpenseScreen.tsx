@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -38,6 +38,7 @@ export default function AddExpenseScreen() {
   const [financialType, setFinancialType] = useState<FinancialType>('unclassified');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Estado para cuotas en modo edición (read-only display)
   const [isPartOfInstallments, setIsPartOfInstallments] = useState(false);
@@ -130,7 +131,6 @@ export default function AddExpenseScreen() {
       return;
     }
 
-    // Validar que el monto no sea absurdamente grande (máximo 1 billón)
     if (numAmount > 1000000000000) {
       Alert.alert('Error', 'El monto ingresado es demasiado grande');
       return;
@@ -141,27 +141,31 @@ export default function AddExpenseScreen() {
       return;
     }
 
-    if (isEditing && expenseId) {
-      await updateExpense(expenseId, {
-        amount: numAmount,
-        description,
-        categoryIds: selectedCategoryIds,
-        date: date.toISOString(),
-        financialType: financialType,
-      });
-      showSuccess('Gasto actualizado correctamente');
+    setIsSaving(true);
+    try {
+      if (isEditing && expenseId) {
+        await updateExpense(expenseId, {
+          amount: numAmount,
+          description,
+          categoryIds: selectedCategoryIds,
+          date: date.toISOString(),
+          financialType: financialType,
+        });
+        showSuccess('Gasto actualizado correctamente');
+      } else {
+        await addExpense({
+          amount: numAmount,
+          description,
+          categoryIds: selectedCategoryIds,
+          date: date.toISOString(),
+          financialType: financialType,
+          paymentMethod: 'cash',
+        });
+        showSuccess('Gasto agregado correctamente');
+      }
       navigation.goBack();
-    } else {
-      await addExpense({
-        amount: numAmount,
-        description,
-        categoryIds: selectedCategoryIds,
-        date: date.toISOString(),
-        financialType: financialType,
-        paymentMethod: 'cash',
-      });
-      showSuccess('Gasto agregado correctamente');
-      navigation.goBack();
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -488,12 +492,14 @@ export default function AddExpenseScreen() {
 
                 <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.xxxl, marginBottom: spacing.xxxl }}>
                     <TouchableOpacity
-                        style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0 }]}
+                        style={[styles.saveButton, { flex: 1, marginTop: 0, marginBottom: 0, opacity: isSaving ? 0.7 : 1 }]}
                         onPress={handleSave}
+                        disabled={isSaving}
                     >
-                        <Text style={[typography.button, { color: '#FFFFFF' }]}>
-                          {isEditing ? 'Actualizar' : 'Guardar'}
-                        </Text>
+                        {isSaving
+                          ? <ActivityIndicator color="#FFFFFF" size="small" />
+                          : <Text style={[typography.button, { color: '#FFFFFF' }]}>{isEditing ? 'Actualizar' : 'Guardar'}</Text>
+                        }
                     </TouchableOpacity>
                 </View>
             </>

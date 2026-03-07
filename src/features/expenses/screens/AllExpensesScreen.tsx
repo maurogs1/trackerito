@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, TextInput, Modal, TouchableWithoutFeedback, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useStore } from '../../../store/useStore';
@@ -41,8 +42,9 @@ export default function AllExpensesScreen() {
   const expenses = getCurrentExpenses();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const tabBarHeight = useBottomTabBarHeight();
   const common = createCommonStyles(currentTheme);
-  const { showSuccess, showError } = useToast();
+  const { showToast, showError } = useToast();
 
   const [refreshing, setRefreshing] = useState(false);
   const [showSwipeTutorial, setShowSwipeTutorial] = useState(false);
@@ -67,7 +69,7 @@ export default function AllExpensesScreen() {
   }, []);
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('all');
+  const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('month');
   const [selectedFinancialTypes, setSelectedFinancialTypes] = useState<string[]>([]);
   const [selectedExpenseType, setSelectedExpenseType] = useState<'all' | 'fixed' | 'variable'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,8 +88,7 @@ export default function AllExpensesScreen() {
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
 
-  // Delete Confirmation Modal
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  // Delete state
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
 
   // Filters Modal
@@ -184,7 +185,7 @@ export default function AllExpensesScreen() {
   // Clear all filters
   const clearAllFilters = () => {
     setSelectedCategories([]);
-    setSelectedPeriod('all');
+    setSelectedPeriod('month');
     setSelectedFinancialTypes([]);
     setSelectedExpenseType('all');
     setCustomDateRange({ start: null, end: null });
@@ -225,45 +226,32 @@ export default function AllExpensesScreen() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     setExpenseToDelete(id);
-    setShowDeleteModal(true);
   };
-
-  // Detectar si el gasto a eliminar es parte de un grupo de cuotas
-  const getInstallmentInfo = () => {
-    if (!expenseToDelete) return null;
-    const expense = allExpenses.find(e => e.id === expenseToDelete);
-    if (!expense) return null;
-
-    if (expense.parentExpenseId) {
-      // Es cuota hija - contar hermanas
-      const siblings = allExpenses.filter(e => e.parentExpenseId === expense.parentExpenseId);
-      return { isInstallment: true, count: siblings.length, description: expense.description };
-    } else if (expense.isParent) {
-      // Es padre - contar hijas
-      const children = allExpenses.filter(e => e.parentExpenseId === expense.id);
-      return { isInstallment: true, count: children.length, description: expense.description };
-    }
-    return null;
-  };
-
-  const installmentInfo = getInstallmentInfo();
 
   const confirmDelete = async () => {
     if (!expenseToDelete) return;
+    const expense = allExpenses.find(e => e.id === expenseToDelete);
+
+    // Detectar cuotas
+    let installmentCount: number | null = null;
+    if (expense?.parentExpenseId) {
+      installmentCount = allExpenses.filter(e => e.parentExpenseId === expense.parentExpenseId).length;
+    } else if (expense?.isParent) {
+      installmentCount = allExpenses.filter(e => e.parentExpenseId === expense.id).length;
+    }
 
     try {
       await removeExpense(expenseToDelete);
-      showSuccess(installmentInfo
-        ? `${installmentInfo.count} cuotas eliminadas correctamente`
-        : 'Gasto eliminado correctamente'
-      );
-      setShowDeleteModal(false);
-      setExpenseToDelete(null);
-    } catch (error) {
+      showToast({
+        message: installmentCount ? `${installmentCount} cuotas eliminadas` : 'Gasto eliminado',
+        type: 'success',
+        duration: 3000,
+      });
+    } catch {
       showError('Error al eliminar el gasto');
-      setShowDeleteModal(false);
+    } finally {
       setExpenseToDelete(null);
     }
   };
@@ -398,12 +386,9 @@ export default function AllExpensesScreen() {
     },
     activeFiltersSummary: {
       marginTop: spacing.md,
-      maxHeight: 80,
-    },
-    activeFiltersSummaryContent: {
       flexDirection: 'row',
-      gap: spacing.sm,
-      paddingRight: spacing.lg,
+      flexWrap: 'wrap',
+      gap: spacing.xs,
     },
     activeFilterChip: {
       flexDirection: 'row',
@@ -431,12 +416,12 @@ export default function AllExpensesScreen() {
     },
     filterChip: {
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.md,
+      paddingVertical: spacing.sm,
       borderRadius: borderRadius.full,
       backgroundColor: currentTheme.background,
-      borderWidth: 1.5,
+      borderWidth: 1,
       borderColor: currentTheme.border,
-      minHeight: 42,
+      minHeight: 34,
       justifyContent: 'center',
     },
     filterChipActive: {
@@ -597,18 +582,18 @@ export default function AllExpensesScreen() {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: spacing.xl,
-      paddingTop: spacing.xl,
-      paddingBottom: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.md,
       borderBottomWidth: 1,
       borderBottomColor: currentTheme.border,
     },
     filtersModalBody: {
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
     },
     modalFilterSection: {
-      marginBottom: spacing.xxl,
+      marginBottom: spacing.lg,
     },
     modalFilterHeader: {
       flexDirection: 'row',
@@ -639,6 +624,22 @@ export default function AllExpensesScreen() {
       borderRadius: borderRadius.md,
       backgroundColor: currentTheme.primary,
       alignItems: 'center',
+    },
+    fab: {
+      position: 'absolute',
+      right: spacing.xl,
+      bottom: 16,
+      backgroundColor: currentTheme.primary,
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: currentTheme.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 8,
     },
   });
 
@@ -718,31 +719,26 @@ export default function AllExpensesScreen() {
 
         {/* Active Filters Summary */}
         {activeFiltersCount > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.activeFiltersSummary}
-            contentContainerStyle={styles.activeFiltersSummaryContent}
-          >
+          <View style={styles.activeFiltersSummary}>
             {selectedPeriod !== 'all' && (
               <View style={[styles.activeFilterChip, { backgroundColor: currentTheme.primary + '15', borderColor: currentTheme.primary }]}>
-                <Ionicons name="calendar-outline" size={14} color={currentTheme.primary} />
+                <Ionicons name="calendar-outline" size={13} color={currentTheme.primary} />
                 <Text style={[typography.caption, { color: currentTheme.primary, fontWeight: '600' }]}>
                   {periodFilters.find(f => f.value === selectedPeriod)?.label}
                 </Text>
-                <TouchableOpacity onPress={() => { setSelectedPeriod('all'); setCustomDateRange({ start: null, end: null }); }}>
-                  <Ionicons name="close-circle" size={16} color={currentTheme.primary} />
+                <TouchableOpacity onPress={() => { setSelectedPeriod('month'); setCustomDateRange({ start: null, end: null }); }}>
+                  <Ionicons name="close-circle" size={15} color={currentTheme.primary} />
                 </TouchableOpacity>
               </View>
             )}
             {selectedExpenseType !== 'all' && (
               <View style={[styles.activeFilterChip, { backgroundColor: '#4CAF50' + '15', borderColor: '#4CAF50' }]}>
-                <Ionicons name={selectedExpenseType === 'fixed' ? 'flash' : 'shuffle'} size={14} color="#4CAF50" />
+                <Ionicons name={selectedExpenseType === 'fixed' ? 'flash' : 'shuffle'} size={13} color="#4CAF50" />
                 <Text style={[typography.caption, { color: '#4CAF50', fontWeight: '600' }]}>
                   {selectedExpenseType === 'fixed' ? 'Fijos' : 'Variables'}
                 </Text>
                 <TouchableOpacity onPress={() => setSelectedExpenseType('all')}>
-                  <Ionicons name="close-circle" size={16} color="#4CAF50" />
+                  <Ionicons name="close-circle" size={15} color="#4CAF50" />
                 </TouchableOpacity>
               </View>
             )}
@@ -750,12 +746,12 @@ export default function AllExpensesScreen() {
               const typeFilter = financialTypeFilters.find(f => f.value === type);
               return (
                 <View key={type} style={[styles.activeFilterChip, { backgroundColor: '#FF9800' + '15', borderColor: '#FF9800' }]}>
-                  <Ionicons name={typeFilter?.icon as any} size={14} color="#FF9800" />
+                  <Ionicons name={typeFilter?.icon as any} size={13} color="#FF9800" />
                   <Text style={[typography.caption, { color: '#FF9800', fontWeight: '600' }]}>
                     {typeFilter?.label}
                   </Text>
                   <TouchableOpacity onPress={() => toggleFinancialType(type)}>
-                    <Ionicons name="close-circle" size={16} color="#FF9800" />
+                    <Ionicons name="close-circle" size={15} color="#FF9800" />
                   </TouchableOpacity>
                 </View>
               );
@@ -765,17 +761,17 @@ export default function AllExpensesScreen() {
               if (!category) return null;
               return (
                 <View key={catId} style={[styles.activeFilterChip, { backgroundColor: category.color + '15', borderColor: category.color }]}>
-                  <Ionicons name={category.icon as any} size={14} color={category.color} />
+                  <Ionicons name={category.icon as any} size={13} color={category.color} />
                   <Text style={[typography.caption, { color: category.color, fontWeight: '600' }]}>
                     {category.name}
                   </Text>
                   <TouchableOpacity onPress={() => toggleCategory(catId)}>
-                    <Ionicons name="close-circle" size={16} color={category.color} />
+                    <Ionicons name="close-circle" size={15} color={category.color} />
                   </TouchableOpacity>
                 </View>
               );
             })}
-          </ScrollView>
+          </View>
         )}
       </View>
 
@@ -797,6 +793,7 @@ export default function AllExpensesScreen() {
           data={displayedExpenses}
           keyExtractor={(item) => item.id}
           style={styles.listContainer}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + 80 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -814,9 +811,21 @@ export default function AllExpensesScreen() {
                 color={currentTheme.textSecondary}
                 style={{ marginBottom: spacing.lg, opacity: 0.3 }}
               />
-              <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center' }]}>
-                {searchQuery ? 'No se encontraron gastos' : 'No hay gastos para mostrar'}
+              <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.sm }]}>
+                {searchQuery
+                  ? 'No se encontraron gastos'
+                  : activeFiltersCount > 0
+                    ? 'No hay gastos con estos filtros'
+                    : 'No hay gastos este mes'}
               </Text>
+              {!searchQuery && activeFiltersCount === 0 && (
+                <TouchableOpacity
+                  style={{ marginTop: spacing.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, backgroundColor: currentTheme.primary, borderRadius: borderRadius.md }}
+                  onPress={() => navigation.navigate('AddExpense')}
+                >
+                  <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>+ Agregar primer gasto</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
           renderItem={({ item: expense }) => {
@@ -918,7 +927,7 @@ export default function AllExpensesScreen() {
                 <ScrollView showsVerticalScrollIndicator={false} style={styles.filtersModalBody}>
                   {/* Period Filter */}
                   <View style={styles.modalFilterSection}>
-                    <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.md }]}>Período</Text>
+                    <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.sm, textTransform: 'uppercase', fontSize: 11, letterSpacing: 0.8 }]}>Período</Text>
                     <View style={styles.filterRow}>
                       {periodFilters.map(filter => (
                         <TouchableOpacity
@@ -944,7 +953,7 @@ export default function AllExpensesScreen() {
 
                   {/* Expense Type Filter (Fixed vs Variable) */}
                   <View style={styles.modalFilterSection}>
-                    <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.md }]}>Tipo</Text>
+                    <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.sm, textTransform: 'uppercase', fontSize: 11, letterSpacing: 0.8 }]}>Tipo</Text>
                     <View style={styles.filterRow}>
                       {expenseTypeFilters.map(filter => {
                         const isSelected = selectedExpenseType === filter.value;
@@ -981,7 +990,7 @@ export default function AllExpensesScreen() {
                   {/* Financial Type Filter */}
                   <View style={styles.modalFilterSection}>
                     <View style={styles.modalFilterHeader}>
-                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Clasificación</Text>
+                      <Text style={[typography.body, { color: currentTheme.textSecondary, textTransform: 'uppercase', fontSize: 11, letterSpacing: 0.8 }]}>Clasificación</Text>
                       {selectedFinancialTypes.length > 0 && (
                         <Text style={[typography.caption, { color: currentTheme.primary, fontWeight: '600' }]}>
                           {selectedFinancialTypes.length} seleccionado{selectedFinancialTypes.length > 1 ? 's' : ''}
@@ -1027,7 +1036,7 @@ export default function AllExpensesScreen() {
                   {/* Category Filter */}
                   <View style={styles.modalFilterSection}>
                     <View style={styles.modalFilterHeader}>
-                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Categorías</Text>
+                      <Text style={[typography.body, { color: currentTheme.textSecondary, textTransform: 'uppercase', fontSize: 11, letterSpacing: 0.8 }]}>Categorías</Text>
                       {selectedCategories.length > 0 && (
                         <Text style={[typography.caption, { color: currentTheme.primary, fontWeight: '600' }]}>
                           {selectedCategories.length} seleccionada{selectedCategories.length > 1 ? 's' : ''}
@@ -1162,64 +1171,9 @@ export default function AllExpensesScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
-      <Modal
-        visible={showDeleteModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setShowDeleteModal(false);
-          setExpenseToDelete(null);
-        }}
-      >
-        <TouchableWithoutFeedback onPress={() => {
-          setShowDeleteModal(false);
-          setExpenseToDelete(null);
-        }}>
-          <View style={common.modalOverlayCentered}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <ScrollView
-                contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
-                showsVerticalScrollIndicator={false}
-              >
-                <View style={styles.deleteModalContent}>
-                  <View style={{ marginBottom: spacing.lg }}>
-                    <Ionicons name="alert-circle" size={48} color={currentTheme.error} />
-                  </View>
-                  <Text style={[typography.sectionTitle, { color: currentTheme.text, marginBottom: spacing.md, textAlign: 'center' }]}>
-                    {installmentInfo ? 'Eliminar Cuotas' : 'Eliminar Gasto'}
-                  </Text>
-                  <Text style={[typography.body, { color: currentTheme.textSecondary, textAlign: 'center', marginBottom: spacing.xxl, lineHeight: 20 }]}>
-                    {installmentInfo
-                      ? `Este gasto tiene ${installmentInfo.count} cuotas. Se eliminarán TODAS las cuotas de "${installmentInfo.description}". Esta acción no se puede deshacer.`
-                      : '¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.'
-                    }
-                  </Text>
-                  <View style={styles.deleteModalButtons}>
-                    <TouchableOpacity
-                      style={[styles.deleteModalButton, styles.deleteModalButtonCancel]}
-                      onPress={() => {
-                        setShowDeleteModal(false);
-                        setExpenseToDelete(null);
-                      }}
-                    >
-                      <Text style={[typography.bodyBold, { color: currentTheme.text }]}>Cancelar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.deleteModalButton, styles.deleteModalButtonConfirm]}
-                      onPress={confirmDelete}
-                    >
-                      <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>
-                        {installmentInfo ? `Eliminar ${installmentInfo.count} cuotas` : 'Eliminar'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </ScrollView>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('AddExpense')}>
+        <Ionicons name="add" size={26} color="#FFFFFF" />
+      </TouchableOpacity>
 
       <SwipeTutorialOverlay
         visible={showSwipeTutorial}
@@ -1228,6 +1182,31 @@ export default function AllExpensesScreen() {
           await markSwipeTutorialSeen();
         }}
       />
+
+      {/* Modal confirmación eliminar gasto */}
+      <Modal visible={!!expenseToDelete} transparent animationType="fade" onRequestClose={() => setExpenseToDelete(null)}>
+        <TouchableWithoutFeedback onPress={() => setExpenseToDelete(null)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: spacing.xl }}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={{ backgroundColor: currentTheme.card, borderRadius: borderRadius.lg, padding: spacing.xl, width: 300, borderWidth: 1, borderColor: currentTheme.border, alignItems: 'center' }}>
+                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: currentTheme.error + '20', justifyContent: 'center', alignItems: 'center', marginBottom: spacing.lg }}>
+                  <Ionicons name="alert-circle" size={32} color={currentTheme.error} />
+                </View>
+                <Text style={[typography.bodyBold, { color: currentTheme.text, marginBottom: spacing.sm, textAlign: 'center' }]}>Eliminar gasto</Text>
+                <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.xl, textAlign: 'center' }]}>¿Estás seguro de que querés eliminar este gasto? Esta acción no se puede revertir.</Text>
+                <View style={{ flexDirection: 'row', gap: spacing.md, width: '100%' }}>
+                  <TouchableOpacity style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: currentTheme.border, alignItems: 'center' }} onPress={() => setExpenseToDelete(null)}>
+                    <Text style={[typography.body, { color: currentTheme.text }]}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: currentTheme.error, alignItems: 'center' }} onPress={confirmDelete}>
+                    <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
