@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useToast } from '../../../shared/hooks/useToast';
+import { confirm } from '../../../shared/hooks/useConfirm';
 
 type BanksScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Banks'>;
 
@@ -16,7 +17,7 @@ export default function BanksScreen() {
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newBankName, setNewBankName] = useState('');
@@ -33,26 +34,20 @@ export default function BanksScreen() {
       setNewBankName('');
       setShowAddModal(false);
     } else {
-      Alert.alert('Error', 'No se pudo agregar el banco');
+      showError('No se pudo agregar el banco');
     }
   };
 
-  const handleDeleteBank = (id: string, name: string) => {
-    Alert.alert(
+  const handleDeleteBank = async (id: string, name: string) => {
+    const ok = await confirm(
       'Eliminar Banco',
       `¿Estás seguro de que quieres eliminar ${name}? Se eliminarán también sus tarjetas asociadas.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteBank(id);
-            showSuccess(`Banco "${name}" eliminado`);
-          }
-        }
-      ]
+      { confirmText: 'Eliminar', destructive: true }
     );
+    if (ok) {
+      await deleteBank(id);
+      showSuccess(`Banco "${name}" eliminado`);
+    }
   };
 
   const styles = StyleSheet.create({

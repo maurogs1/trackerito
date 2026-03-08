@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,6 +10,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Ionicons } from '@expo/vector-icons';
+import { useToast } from '../../../shared/hooks/useToast';
 
 type CreateDebtScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CreateDebt'>;
 type CreateDebtScreenRouteProp = RouteProp<RootStackParamList, 'CreateDebt'>;
@@ -20,6 +21,7 @@ export default function CreateDebtScreen() {
     const { addDebt, linkExpenseToDebt, expenses, preferences, banks, loadBanks, addBank } = useStore();
     const isDark = preferences.theme === 'dark';
     const currentTheme = isDark ? theme.dark : theme.light;
+    const { showSuccess, showError } = useToast();
 
     const expenseId = route.params?.expenseId;
     const expense = expenses.find(e => e.id === expenseId);
@@ -58,7 +60,7 @@ export default function CreateDebtScreen() {
 
     const handleSave = async () => {
         if (!name || !totalAmountStr || !installmentsStr || !installmentAmountStr || !currentInstallmentStr) {
-            Alert.alert('Error', 'Por favor completa todos los campos requeridos');
+            showError('Por favor completa todos los campos requeridos');
             return;
         }
 
@@ -88,11 +90,10 @@ export default function CreateDebtScreen() {
                 });
             }
 
-            Alert.alert('Éxito', 'Deuda creada correctamente', [
-                { text: 'OK', onPress: () => navigation.pop(2) }
-            ]);
+            showSuccess('Deuda creada correctamente');
+            navigation.pop(2);
         } catch (error) {
-            Alert.alert('Error', 'No se pudo crear la deuda');
+            showError('No se pudo crear la deuda');
         } finally {
             setIsSubmitting(false);
         }

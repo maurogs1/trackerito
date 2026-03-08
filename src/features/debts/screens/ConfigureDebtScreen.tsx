@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -7,6 +7,7 @@ import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../../shared/utils/currency';
+import { useToast } from '../../../shared/hooks/useToast';
 import { Debt } from '../../expenses/types';
 
 type ConfigureDebtScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ConfigureDebt'>;
@@ -18,6 +19,7 @@ export default function ConfigureDebtScreen() {
     const { debts, loadDebts, linkExpenseToDebt, expenses, preferences } = useStore();
     const isDark = preferences.theme === 'dark';
     const currentTheme = isDark ? theme.dark : theme.light;
+    const { showSuccess, showError } = useToast();
 
     const expenseId = route.params?.expenseId;
     const expense = expenses.find(e => e.id === expenseId);
@@ -41,11 +43,10 @@ export default function ConfigureDebtScreen() {
                 amount: amountToAssign
             });
 
-            Alert.alert('Éxito', 'Gasto asociado a la deuda correctamente', [
-                { text: 'OK', onPress: () => navigation.goBack() }
-            ]);
+            showSuccess('Gasto asociado a la deuda correctamente');
+            navigation.goBack();
         } catch (error) {
-            Alert.alert('Error', 'No se pudo asociar el gasto');
+            showError('No se pudo asociar el gasto');
         } finally {
             setIsSubmitting(false);
         }

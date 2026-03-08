@@ -9,6 +9,7 @@ export interface RecurringService {
   color: string;
   is_active: boolean;
   created_at?: string;
+  space_id?: string;
   // Para servicios predefinidos
   is_default?: boolean;
   service_category?: string;

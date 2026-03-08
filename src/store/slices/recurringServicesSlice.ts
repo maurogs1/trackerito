@@ -56,6 +56,7 @@ export const createRecurringServicesSlice: StateCreator<RecurringServicesSlice> 
         color: item.color || '#607D8B',
         is_active: item.is_active,
         created_at: item.created_at,
+        space_id: item.space_id || undefined,
       }));
 
       set({ recurringServices: services, isLoadingServices: false, error: null });
@@ -133,6 +134,7 @@ export const createRecurringServicesSlice: StateCreator<RecurringServicesSlice> 
 
       if (!user || !user.id) throw new Error('No user authenticated');
 
+      const activeSpaceId = (get() as any).activeSpaceId;
       const { data, error } = await supabase
         .from('recurring_services')
         .insert({
@@ -144,6 +146,7 @@ export const createRecurringServicesSlice: StateCreator<RecurringServicesSlice> 
           icon: serviceData.icon,
           color: serviceData.color,
           is_active: serviceData.is_active !== undefined ? serviceData.is_active : true,
+          space_id: activeSpaceId || undefined,
         })
         .select()
         .single();

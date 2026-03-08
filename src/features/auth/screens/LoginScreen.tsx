@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, shadows } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,11 +8,14 @@ import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../../../services/supabase';
 import { getUserFriendlyMessage, logError } from '../../../shared/utils/errorHandler';
+import { useToast } from '../../../shared/hooks/useToast';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const loadEssentialData = async () => {
   const state = useStore.getState();
+  // loadSpaces must run first so activeSpaceId is set before loading filtered data
+  await state.loadSpaces();
   await Promise.all([
     state.loadExpenses(),
     state.loadCategories(),
@@ -23,6 +26,7 @@ export default function LoginScreen() {
   const { isLoading, preferences, error } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const { showError } = useToast();
 
   useEffect(() => {
     const handleUrl = async ({ url }: { url: string }) => {
@@ -32,7 +36,7 @@ export default function LoginScreen() {
         if (errorCode) {
           logError(new Error(errorCode), 'OAuth-callback');
           const errorMessage = getUserFriendlyMessage(new Error(errorCode), 'auth');
-          Alert.alert('Error', errorMessage);
+          showError(errorMessage);
           useStore.setState({ error: errorMessage });
           return;
         }
@@ -56,14 +60,14 @@ export default function LoginScreen() {
           } catch (e: unknown) {
             logError(e, 'OAuth-session-set');
             const errorMessage = getUserFriendlyMessage(e, 'auth');
-            Alert.alert('Error', errorMessage);
+            showError(errorMessage);
             useStore.setState({ error: errorMessage });
           }
         } else {
           const errorMsg = 'Faltan tokens en la URL de callback';
           logError(new Error(errorMsg), 'OAuth-callback-tokens');
           const errorMessage = getUserFriendlyMessage(new Error(errorMsg), 'auth');
-          Alert.alert('Error', errorMessage);
+          showError(errorMessage);
           useStore.setState({ error: errorMessage });
         }
       }
@@ -87,7 +91,10 @@ export default function LoginScreen() {
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: redirectUri },
+        options: {
+          redirectTo: redirectUri,
+          queryParams: { prompt: 'select_account' },
+        },
       });
 
       if (error) throw error;
@@ -128,7 +135,7 @@ export default function LoginScreen() {
     } catch (e: unknown) {
       logError(e, 'Google-login');
       const errorMessage = getUserFriendlyMessage(e, 'auth');
-      Alert.alert('Error', errorMessage);
+      showError(errorMessage);
       useStore.setState({ error: errorMessage });
     }
   };

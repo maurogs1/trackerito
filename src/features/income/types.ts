@@ -11,6 +11,7 @@ export interface Income {
   recurringFrequency?: RecurringFrequency;
   createdAt?: string;
   updatedAt?: string;
+  spaceId?: string;
 }
 
 export const FREQUENCY_LABELS: Record<RecurringFrequency, string> = {

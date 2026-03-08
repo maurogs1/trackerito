@@ -9,40 +9,39 @@ import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useToast } from '../../../shared/hooks/useToast';
 
 const ICONS = [
-  'cash', 'briefcase', 'laptop', 'gift', 'trending-up', 'home', 'wallet', 'card',
-  'cart', 'restaurant', 'cafe', 'car', 'airplane', 'boat', 'bicycle', 'bus', 'train',
-  'medical', 'fitness', 'school', 'book', 'musical-notes', 'camera', 'desktop',
-  'globe', 'heart', 'star', 'trophy', 'pricetag', 'construct', 'key', 'map',
-  'football', 'basketball', 'shirt', 'paw', 'pizza', 'call', 'wifi',
+  'person', 'business', 'home', 'briefcase', 'storefront', 'car',
+  'heart', 'star', 'globe', 'school', 'fitness', 'medical',
+  'wallet', 'cash', 'card', 'trending-up', 'construct', 'laptop',
+  'restaurant', 'cafe', 'cart', 'pricetag', 'gift', 'trophy',
 ];
 
 const COLORS = [
-  '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#795548', '#607D8B',
+  '#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#795548', '#607D8B',
   '#FF5722', '#F44336', '#E91E63', '#3F51B5', '#FFC107', '#00BCD4',
 ];
 
-type FormRouteProp = RouteProp<RootStackParamList, 'IncomeTypeForm'>;
-type FormNavProp = NativeStackNavigationProp<RootStackParamList, 'IncomeTypeForm'>;
+type FormRouteProp = RouteProp<RootStackParamList, 'SpaceForm'>;
+type FormNavProp = NativeStackNavigationProp<RootStackParamList, 'SpaceForm'>;
 
-export default function IncomeTypeFormScreen() {
+export default function SpaceFormScreen() {
   const navigation = useNavigation<FormNavProp>();
   const route = useRoute<FormRouteProp>();
-  const { incomeTypes, addIncomeType, updateIncomeType, preferences } = useStore();
+  const { spaces, addSpace, updateSpace, preferences } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
   const { showSuccess, showError } = useToast();
 
-  const incomeTypeId = route.params?.incomeTypeId;
-  const isEditing = !!incomeTypeId;
-  const editing = isEditing ? incomeTypes.find((t) => t.id === incomeTypeId) : null;
+  const spaceId = route.params?.spaceId;
+  const isEditing = !!spaceId;
+  const editing = isEditing ? spaces.find((s) => s.id === spaceId) : null;
 
   const [name, setName] = useState(editing?.name ?? '');
   const [selectedIcon, setSelectedIcon] = useState(editing?.icon ?? ICONS[0]);
   const [selectedColor, setSelectedColor] = useState(editing?.color ?? COLORS[0]);
 
   useEffect(() => {
-    navigation.setOptions({ title: isEditing ? 'Editar Tipo' : 'Nuevo Tipo' });
+    navigation.setOptions({ title: isEditing ? 'Editar Espacio' : 'Nuevo Espacio' });
   }, [isEditing]);
 
   const handleSave = async () => {
@@ -51,10 +50,10 @@ export default function IncomeTypeFormScreen() {
       return;
     }
     if (isEditing && editing) {
-      await updateIncomeType({ ...editing, name: name.trim(), icon: selectedIcon, color: selectedColor });
+      await updateSpace({ ...editing, name: name.trim(), icon: selectedIcon, color: selectedColor });
       showSuccess(`"${name.trim()}" actualizado`);
     } else {
-      await addIncomeType({ name: name.trim(), icon: selectedIcon, color: selectedColor });
+      await addSpace({ name: name.trim(), icon: selectedIcon, color: selectedColor });
       showSuccess(`"${name.trim()}" creado`);
     }
     navigation.goBack();
@@ -105,7 +104,7 @@ export default function IncomeTypeFormScreen() {
         </Text>
         <TextInput
           style={common.input}
-          placeholder="Nombre del tipo"
+          placeholder="Nombre del espacio"
           placeholderTextColor={currentTheme.textSecondary}
           value={name}
           onChangeText={setName}

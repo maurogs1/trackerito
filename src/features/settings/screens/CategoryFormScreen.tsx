@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,7 +26,7 @@ export default function CategoryFormScreen() {
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
 
   const categoryId = route.params?.categoryId;
   const isEditing = !!categoryId;
@@ -42,7 +42,7 @@ export default function CategoryFormScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Por favor ingresá un nombre');
+      showError('Por favor ingresá un nombre');
       return;
     }
 

@@ -75,6 +75,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
         recurringFrequency: inc.recurring_frequency || 'monthly',
         createdAt: inc.created_at,
         updatedAt: inc.updated_at,
+        spaceId: inc.space_id || undefined,
       }));
 
       set({ incomes: mappedIncomes, isLoadingIncomes: false });
@@ -94,6 +95,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
         return;
       }
 
+      const activeSpaceId = (get() as any).activeSpaceId;
       const { data, error } = await supabase
         .from('incomes')
         .insert([{
@@ -105,6 +107,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
           is_recurring: incomeData.isRecurring,
           recurring_day: incomeData.recurringDay,
           recurring_frequency: incomeData.recurringFrequency || 'monthly',
+          space_id: (incomeData as any).spaceId || activeSpaceId || undefined,
         }])
         .select()
         .single();
@@ -125,6 +128,7 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
         recurringFrequency: data.recurring_frequency || 'monthly',
         createdAt: data.created_at,
         updatedAt: data.updated_at,
+        spaceId: data.space_id || undefined,
       };
 
       set((state) => ({ incomes: [newIncome, ...state.incomes] }));
@@ -196,6 +200,13 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
 
   getMonthlyIncomeBreakdown: (month = new Date()) => {
     const { incomes } = get();
+    const state = get() as any;
+    const spaces = state.spaces as Array<{ id: string; isDefault: boolean }> | undefined;
+    const storedActiveSpaceId = state.activeSpaceId as string | null;
+    // Si activeSpaceId es null pero hay espacios, usar el espacio default
+    const activeSpaceId = storedActiveSpaceId
+      ?? (spaces?.find(s => s.isDefault)?.id ?? null);
+    const isDefaultSpace = !activeSpaceId || !!(spaces?.find(s => s.id === activeSpaceId)?.isDefault);
     const now = new Date();
     const today = now.getDate();
     const isCurrentMonth = isSameMonth(month, now);
@@ -204,7 +215,14 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
     let confirmed = 0;
     let pending = 0;
 
-    incomes.forEach((inc) => {
+    const filteredIncomes = activeSpaceId
+      ? incomes.filter(inc => {
+          if (isDefaultSpace) return !inc.spaceId || inc.spaceId === activeSpaceId;
+          return inc.spaceId === activeSpaceId;
+        })
+      : incomes;
+
+    filteredIncomes.forEach((inc) => {
       const incomeDate = new Date(inc.date);
 
       if (inc.isRecurring) {
@@ -270,13 +288,20 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
     const currentYear = now.getFullYear();
     const today = now.getDate();
 
+    // Determinar espacio activo
+    const spaces = state.spaces as Array<{ id: string; isDefault: boolean }> | undefined;
+    const storedActiveSpaceId = state.activeSpaceId as string | null;
+    const activeSpaceId = storedActiveSpaceId
+      ?? (spaces?.find((s: any) => s.isDefault)?.id ?? null);
+    const isDefaultSpace = !activeSpaceId || !!(spaces?.find((s: any) => s.id === activeSpaceId)?.isDefault);
+
     // Breakdown de ingresos del mes (confirmados vs pendientes)
     const incomeBreakdown = get().getMonthlyIncomeBreakdown(now as Date);
     const confirmedIncome = incomeBreakdown.confirmed;
     const pendingIncome = incomeBreakdown.pending;
 
-    // Carryover del mes anterior (desde preferencias)
-    const carryover = (state.preferences?.carryoverAmount) || 0;
+    // Carryover del mes anterior — solo aplica al espacio default
+    const carryover = isDefaultSpace ? ((state.preferences?.carryoverAmount) || 0) : 0;
 
     // Total de ingresos = confirmados + carryover
     const totalIncome = confirmedIncome + carryover;
@@ -286,8 +311,14 @@ export const createIncomeSlice: StateCreator<IncomeSlice> = (set, get) => ({
     const monthlyExpenses = currentExpenses;
     const totalExpenses = monthlyExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
 
-    // Calcular servicios recurrentes pendientes del mes
-    const recurringServices = state.recurringServices || [];
+    // Calcular servicios recurrentes pendientes del mes (filtrar por espacio)
+    const allServices = state.recurringServices || [];
+    const recurringServices = activeSpaceId
+      ? allServices.filter((s: any) => {
+          if (isDefaultSpace) return !s.space_id || s.space_id === activeSpaceId;
+          return s.space_id === activeSpaceId;
+        })
+      : allServices;
     const servicePayments = state.servicePayments || [];
 
     let pendingRecurring = 0;

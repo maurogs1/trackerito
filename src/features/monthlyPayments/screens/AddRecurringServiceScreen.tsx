@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -65,12 +65,12 @@ export default function AddRecurringServiceScreen() {
 
   const handleSave = async () => {
     if (!serviceName.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un nombre');
+      showError('Por favor ingresa un nombre');
       return;
     }
 
     if (!serviceAmount.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un monto estimado');
+      showError('Por favor ingresa un monto estimado');
       return;
     }
 
@@ -78,12 +78,12 @@ export default function AddRecurringServiceScreen() {
     const day = parseInt(serviceDay);
 
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Error', 'El monto debe ser mayor a 0');
+      showError('El monto debe ser mayor a 0');
       return;
     }
 
     if (isNaN(day) || day < 1 || day > 31) {
-      Alert.alert('Error', 'El día debe estar entre 1 y 31');
+      showError('El día debe estar entre 1 y 31');
       return;
     }
 

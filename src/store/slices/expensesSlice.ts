@@ -36,9 +36,11 @@ export const createExpensesSlice: StateCreator<
     try {
         // Load from Supabase
         const { supabase } = await import('../../services/supabase');
+        const userId = (get() as any).user?.id;
         const { data, error } = await supabase
           .from('expenses')
           .select('*, expense_categories(category_id)')
+          .eq('user_id', userId)
           .order('date', { ascending: false });
         
         if (error) {
@@ -66,6 +68,7 @@ export const createExpensesSlice: StateCreator<
             serviceId: item.service_id,
             debtId: item.debt_id,
             paymentGroupId: item.payment_group_id,
+            spaceId: item.space_id || undefined,
           }));
           set({ expenses: loadedExpenses, isLoading: false, error: null } as any);
         }
@@ -92,6 +95,7 @@ export const createExpensesSlice: StateCreator<
           throw new Error(errorMsg);
         }
         
+        const activeSpaceId = (get() as any).activeSpaceId;
         const expenseToInsert = {
           // No id field - Supabase will generate it
           amount: expenseData.amount,
@@ -99,6 +103,7 @@ export const createExpensesSlice: StateCreator<
           date: expenseData.date,
           financial_type: expenseData.financialType || 'unclassified',
           user_id: user.id,
+          space_id: expenseData.spaceId || activeSpaceId || undefined,
           credit_card_id: expenseData.creditCardId,
           is_credit_card_payment: expenseData.isCreditCardPayment,
           service_id: expenseData.serviceId,
@@ -473,6 +478,7 @@ export const createExpensesSlice: StateCreator<
       const totalAmount = expenseData.amount;
       // Redondear a 2 decimales para evitar problemas de precisión
       const installmentAmount = Math.round((totalAmount / installments) * 100) / 100;
+      const spaceIdForInstallments = expenseData.spaceId || (get() as any).activeSpaceId || undefined;
 
       // 1. Crear gasto PADRE (metadata)
       const parentExpenseData = {
@@ -481,6 +487,7 @@ export const createExpensesSlice: StateCreator<
         date: expenseData.date,
         financial_type: expenseData.financialType || 'unclassified',
         user_id: user.id,
+        space_id: spaceIdForInstallments,
         payment_method: expenseData.paymentMethod || 'cash',
         payment_status: 'paid',
         installments: installments,
@@ -569,6 +576,7 @@ export const createExpensesSlice: StateCreator<
           description: `${expenseData.description} - Cuota ${i}/${installments}`,
           date: installmentDate.toISOString(),
           financial_type: expenseData.financialType || 'unclassified',
+          space_id: spaceIdForInstallments,
           payment_method: expenseData.paymentMethod || 'cash',
           payment_status: installmentDate <= new Date() ? 'paid' : 'pending',
           installments: installments,
@@ -690,12 +698,27 @@ export const createExpensesSlice: StateCreator<
 
   getCurrentExpenses: (date?: Date) => {
     const { expenses } = get();
+    const state = get() as any;
+    const activeSpaceId = state.activeSpaceId as string | null;
+    const spaces = state.spaces as Array<{ id: string; isDefault: boolean }> | undefined;
+    const isDefaultSpace = !activeSpaceId || !!(spaces?.find(s => s.id === activeSpaceId)?.isDefault);
     const now = new Date();
 
     return expenses.filter((e) => {
       // Excluir gastos padre (son metadata)
       if (e.isParent) {
         return false;
+      }
+
+      // Filtrar por espacio activo
+      if (activeSpaceId) {
+        if (isDefaultSpace) {
+          // Espacio default: incluir registros del espacio Y legados sin spaceId
+          if (e.spaceId && e.spaceId !== activeSpaceId) return false;
+        } else {
+          // Espacio nuevo: solo registros con ese spaceId exacto
+          if (e.spaceId !== activeSpaceId) return false;
+        }
       }
 
       // Excluir gastos futuros pendientes
@@ -753,8 +776,17 @@ export const createExpensesSlice: StateCreator<
     const weeksPassed = Math.max(1, daysPassed / 7);
     const weeklyAverage = totalBalance / weeksPassed;
 
-    // Calcular servicios recurrentes pendientes
-    const recurringServices = state.recurringServices || [];
+    // Calcular servicios recurrentes pendientes (filtrar por espacio)
+    const activeSpaceIdForSummary = state.activeSpaceId as string | null;
+    const spacesForSummary = state.spaces as Array<{ id: string; isDefault: boolean }> | undefined;
+    const isDefaultSpaceForSummary = !activeSpaceIdForSummary || !!(spacesForSummary?.find((s: any) => s.id === activeSpaceIdForSummary)?.isDefault);
+    const allServicesForSummary = state.recurringServices || [];
+    const recurringServices = activeSpaceIdForSummary
+      ? allServicesForSummary.filter((s: any) => {
+          if (isDefaultSpaceForSummary) return !s.space_id || s.space_id === activeSpaceIdForSummary;
+          return s.space_id === activeSpaceIdForSummary;
+        })
+      : allServicesForSummary;
     const servicePayments = state.servicePayments || [];
 
     let pendingRecurring = 0;

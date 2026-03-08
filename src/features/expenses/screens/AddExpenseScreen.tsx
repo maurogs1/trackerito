@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -21,11 +21,11 @@ type AddExpenseScreenRouteProp = RouteProp<RootStackParamList, 'AddExpense'>;
 export default function AddExpenseScreen() {
   const navigation = useNavigation<AddExpenseScreenNavigationProp>();
   const route = useRoute<AddExpenseScreenRouteProp>();
-  const { addExpense, updateExpense, expenses, preferences, categories: allCategories, ensureDefaultCategories } = useStore();
+  const { addExpense, updateExpense, expenses, preferences, categories: allCategories, ensureDefaultCategories, spaces, activeSpaceId } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
 
   const expenseId = route.params?.expenseId;
   const isEditing = !!expenseId;
@@ -39,6 +39,7 @@ export default function AddExpenseScreen() {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(activeSpaceId);
 
   // Estado para cuotas en modo edición (read-only display)
   const [isPartOfInstallments, setIsPartOfInstallments] = useState(false);
@@ -121,23 +122,23 @@ export default function AddExpenseScreen() {
 
   const handleSave = async () => {
     if (!amount || !description) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      showError('Por favor completa todos los campos');
       return;
     }
 
     const numAmount = parseCurrencyInput(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
-      Alert.alert('Error', 'Por favor ingresa un monto válido');
+      showError('Por favor ingresa un monto válido');
       return;
     }
 
     if (numAmount > 1000000000000) {
-      Alert.alert('Error', 'El monto ingresado es demasiado grande');
+      showError('El monto ingresado es demasiado grande');
       return;
     }
 
     if (selectedCategoryIds.length === 0) {
-      Alert.alert('Error', 'Por favor selecciona al menos una categoría');
+      showError('Por favor selecciona al menos una categoría');
       return;
     }
 
@@ -160,6 +161,7 @@ export default function AddExpenseScreen() {
           date: date.toISOString(),
           financialType: financialType,
           paymentMethod: 'cash',
+          spaceId: selectedSpaceId || undefined,
         });
         showSuccess('Gasto agregado correctamente');
       }
@@ -489,6 +491,27 @@ export default function AddExpenseScreen() {
                     );
                   })}
                 </View>
+
+                {spaces.length > 1 && (
+                  <>
+                    <Text style={styles.label}>Espacio</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg }}>
+                      {spaces.map((space) => {
+                        const isSelected = selectedSpaceId === space.id;
+                        return (
+                          <TouchableOpacity
+                            key={space.id}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full || 20, borderWidth: 1.5, borderColor: isSelected ? space.color : currentTheme.border, backgroundColor: isSelected ? space.color + '18' : currentTheme.surface }}
+                            onPress={() => setSelectedSpaceId(space.id)}
+                          >
+                            <Ionicons name={space.icon as any} size={14} color={isSelected ? space.color : currentTheme.textSecondary} />
+                            <Text style={[typography.bodyBold, { color: isSelected ? space.color : currentTheme.textSecondary, fontSize: 13 }]}>{space.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
 
                 <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.xxxl, marginBottom: spacing.xxxl }}>
                     <TouchableOpacity

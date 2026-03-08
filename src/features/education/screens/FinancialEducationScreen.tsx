@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useToast } from '../../../shared/hooks/useToast';
 
 type WizardStep = 'intro' | 'income' | 'classification' | 'dashboard';
 type FinancialEducationScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'FinancialEducation'>;
@@ -28,6 +29,7 @@ export default function FinancialEducationScreen() {
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
+  const { showError } = useToast();
 
   const [step, setStep] = useState<WizardStep>('intro');
   const [income, setIncome] = useState('');
@@ -105,12 +107,12 @@ export default function FinancialEducationScreen() {
     if (numericIncome > 0) {
       const total = percentages.needs + percentages.wants + percentages.savings;
       if (total !== 100) {
-        Alert.alert('Error', `Los porcentajes deben sumar 100% (Suman ${total}%)`);
+        showError(`Los porcentajes deben sumar 100% (Suman ${total}%)`);
         return;
       }
       saveEducationState('classification', income, percentages);
     } else {
-      Alert.alert('Error', 'Por favor ingresa un ingreso válido');
+      showError('Por favor ingresa un ingreso válido');
     }
   };
 

@@ -29,7 +29,6 @@ export function CategoryPicker({
   selectedIds,
   onSelectionChange,
   onCategorySelected,
-  onManageCategories,
   multiSelect = true,
   label = 'Categoría',
 }: CategoryPickerProps) {
@@ -39,9 +38,8 @@ export function CategoryPicker({
   const common = createCommonStyles(currentTheme);
   const { showSuccess } = useToast();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showAllModal, setShowAllModal] = useState(false);
+  const [allModalSearch, setAllModalSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState(ICONS[0]);
@@ -64,9 +62,6 @@ export function CategoryPicker({
     );
     return [...selectedCats, ...newCats, ...standardCats];
   }, [categories, allCategories, newlyAddedCategoryIds, selectedIds]);
-
-  const filteredCategories = sortedCategories.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const showSearch = sortedCategories.length > 10;
 
   const handleCategorySelect = (categoryId: string) => {
     if (multiSelect) {
@@ -158,54 +153,19 @@ export function CategoryPicker({
     },
   });
 
+  const allModalFiltered = useMemo(() =>
+    sortedCategories.filter(c => c.name.toLowerCase().includes(allModalSearch.toLowerCase())),
+    [sortedCategories, allModalSearch]
+  );
+
   return (
     <>
-      {/* Label + Search */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
-        <Text style={[typography.body, { color: currentTheme.textSecondary }]}>{label}</Text>
-        {showSearch && (
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: currentTheme.card,
-            borderRadius: spacing.sm,
-            paddingHorizontal: spacing.sm,
-            borderWidth: 1,
-            borderColor: isSearchFocused ? currentTheme.primary : currentTheme.border,
-            flex: 1,
-            marginLeft: spacing.md,
-            height: 36,
-          }}>
-            <Ionicons name="search" size={16} color={isSearchFocused ? currentTheme.primary : currentTheme.textSecondary} />
-            <TextInput
-              style={{
-                flex: 1,
-                marginLeft: spacing.sm,
-                color: currentTheme.text,
-                paddingVertical: 0,
-                fontSize: 14,
-                height: '100%',
-                ...Platform.select({ web: { outlineStyle: 'none' } }),
-              } as any}
-              placeholder="Buscar..."
-              placeholderTextColor={currentTheme.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={16} color={currentTheme.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
+      {/* Label */}
+      <Text style={[typography.body, { color: currentTheme.textSecondary, marginBottom: spacing.sm }]}>{label}</Text>
 
-      {/* Category Chips */}
+      {/* Category Chips (top N) */}
       <View style={styles.categoryContainer}>
-        {filteredCategories.slice(0, showAllCategories ? undefined : INITIAL_CATEGORY_COUNT).map((cat: any) => {
+        {sortedCategories.slice(0, INITIAL_CATEGORY_COUNT).map((cat: any) => {
           const isSelected = selectedIds.includes(cat.id);
           return (
             <TouchableOpacity
@@ -217,52 +177,86 @@ export function CategoryPicker({
               ]}
               onPress={() => handleCategorySelect(cat.id)}
             >
-              <Ionicons
-                name={cat.icon as any}
-                size={16}
-                color={isSelected ? '#FFFFFF' : cat.color}
-              />
-              <Text
-                style={[
-                  typography.body,
-                  { color: isSelected ? '#FFFFFF' : currentTheme.text },
-                  isSelected && { fontWeight: 'bold' },
-                ]}
-              >
+              <Ionicons name={cat.icon as any} size={16} color={isSelected ? '#FFFFFF' : cat.color} />
+              <Text style={[typography.body, { color: isSelected ? '#FFFFFF' : currentTheme.text }, isSelected && { fontWeight: 'bold' }]}>
                 {cat.name}
               </Text>
             </TouchableOpacity>
           );
         })}
 
-        {filteredCategories.length > INITIAL_CATEGORY_COUNT && (
+        {sortedCategories.length > INITIAL_CATEGORY_COUNT && (
           <TouchableOpacity
             style={styles.categoryChip}
-            onPress={() => setShowAllCategories(!showAllCategories)}
+            onPress={() => { setAllModalSearch(''); setShowAllModal(true); }}
           >
-            <Text style={[typography.body, { color: currentTheme.text }]}>
-              {showAllCategories ? 'Ver menos' : `Ver más (${filteredCategories.length - INITIAL_CATEGORY_COUNT})`}
+            <Text style={[typography.body, { color: currentTheme.primary }]}>
+              Ver más ({sortedCategories.length - INITIAL_CATEGORY_COUNT})
             </Text>
-            <Ionicons name={showAllCategories ? 'chevron-up' : 'chevron-down'} size={16} color={currentTheme.text} />
+            <Ionicons name="chevron-down" size={16} color={currentTheme.primary} />
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          style={styles.addCategoryButton}
-          onPress={() => setModalVisible(true)}
-        >
+        <TouchableOpacity style={styles.addCategoryButton} onPress={() => setModalVisible(true)}>
           <Ionicons name="add" size={24} color={currentTheme.primary} />
         </TouchableOpacity>
-
-        {onManageCategories && (
-          <TouchableOpacity
-            style={[styles.addCategoryButton, { borderColor: currentTheme.textSecondary, borderStyle: 'solid' }]}
-            onPress={onManageCategories}
-          >
-            <Ionicons name="settings-outline" size={18} color={currentTheme.textSecondary} />
-          </TouchableOpacity>
-        )}
       </View>
+
+      {/* Modal: todas las categorías para seleccionar */}
+      <Modal visible={showAllModal} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={() => setShowAllModal(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={{ backgroundColor: currentTheme.background, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, paddingTop: spacing.lg, maxHeight: '80%' }}>
+                {/* Header */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+                  <Text style={[typography.sectionTitle, { color: currentTheme.text }]}>Todas las categorías</Text>
+                  <TouchableOpacity onPress={() => setShowAllModal(false)}>
+                    <Text style={[typography.bodyBold, { color: currentTheme.primary }]}>Listo</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Buscador */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: currentTheme.card, borderRadius: spacing.sm, paddingHorizontal: spacing.md, marginHorizontal: spacing.xl, marginBottom: spacing.md, height: 40, borderWidth: 1, borderColor: currentTheme.border }}>
+                  <Ionicons name="search" size={16} color={currentTheme.textSecondary} />
+                  <TextInput
+                    style={{ flex: 1, marginLeft: spacing.sm, color: currentTheme.text, fontSize: 14, ...Platform.select({ web: { outlineStyle: 'none' } }) } as any}
+                    placeholder="Buscar categoría..."
+                    placeholderTextColor={currentTheme.textSecondary}
+                    value={allModalSearch}
+                    onChangeText={setAllModalSearch}
+                    autoFocus
+                  />
+                  {allModalSearch.length > 0 && (
+                    <TouchableOpacity onPress={() => setAllModalSearch('')}>
+                      <Ionicons name="close-circle" size={16} color={currentTheme.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Lista */}
+                <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xl, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+                  {allModalFiltered.map((cat: any) => {
+                    const isSelected = selectedIds.includes(cat.id);
+                    return (
+                      <TouchableOpacity
+                        key={cat.id}
+                        style={[styles.categoryChip, isSelected && styles.categoryChipSelected, isSelected && { backgroundColor: cat.color, borderColor: cat.color }]}
+                        onPress={() => handleCategorySelect(cat.id)}
+                      >
+                        <Ionicons name={cat.icon as any} size={16} color={isSelected ? '#FFFFFF' : cat.color} />
+                        <Text style={[typography.body, { color: isSelected ? '#FFFFFF' : currentTheme.text }, isSelected && { fontWeight: 'bold' }]}>
+                          {cat.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* Quick Add Category Modal */}
       <Modal visible={modalVisible} transparent animationType="fade">

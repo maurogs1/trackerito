@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,7 +19,7 @@ type AddIncomeRouteProp = RouteProp<RootStackParamList, 'AddIncome'>;
 export default function AddIncomeScreen() {
   const navigation = useNavigation<AddIncomeNavigationProp>();
   const route = useRoute<AddIncomeRouteProp>();
-  const { incomes, addIncome, updateIncome, incomeTypes, loadIncomeTypes, preferences } = useStore();
+  const { incomes, addIncome, updateIncome, incomeTypes, loadIncomeTypes, preferences, spaces, activeSpaceId } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
@@ -40,6 +40,7 @@ export default function AddIncomeScreen() {
   const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
   const [isDayFocused, setIsDayFocused] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(activeSpaceId);
 
   useEffect(() => {
     loadIncomeTypes();
@@ -87,11 +88,11 @@ export default function AddIncomeScreen() {
   const handleSave = async () => {
     const numAmount = parseCurrencyInput(amount);
     if (!numAmount || numAmount <= 0) {
-      Alert.alert('Error', 'Ingresa un monto válido');
+      showError('Ingresa un monto válido');
       return;
     }
     if (!description.trim()) {
-      Alert.alert('Error', 'Ingresa una descripción');
+      showError('Ingresa una descripción');
       return;
     }
 
@@ -117,7 +118,8 @@ export default function AddIncomeScreen() {
           isRecurring,
           recurringDay: isRecurring ? parseInt(recurringDay) : undefined,
           recurringFrequency: isRecurring ? recurringFrequency : undefined,
-        });
+          spaceId: selectedSpaceId || undefined,
+        } as any);
         showSuccess('Ingreso agregado correctamente');
       }
       navigation.goBack();
@@ -410,6 +412,27 @@ export default function AddIncomeScreen() {
               />
             </View>
           </View>
+        )}
+
+        {spaces.length > 1 && (
+          <>
+            <Text style={[typography.label, { color: currentTheme.textSecondary, marginBottom: spacing.sm, marginTop: spacing.xl }]}>Espacio</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg }}>
+              {spaces.map((space) => {
+                const isSelected = selectedSpaceId === space.id;
+                return (
+                  <TouchableOpacity
+                    key={space.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 20, borderWidth: 1.5, borderColor: isSelected ? space.color : currentTheme.border, backgroundColor: isSelected ? space.color + '18' : currentTheme.surface }}
+                    onPress={() => setSelectedSpaceId(space.id)}
+                  >
+                    <Ionicons name={space.icon as any} size={14} color={isSelected ? space.color : currentTheme.textSecondary} />
+                    <Text style={[typography.bodyBold, { color: isSelected ? space.color : currentTheme.textSecondary, fontSize: 13 }]}>{space.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
         )}
 
         <TouchableOpacity style={[styles.saveButton, { opacity: isSaving ? 0.7 : 1 }]} onPress={handleSave} disabled={isSaving}>

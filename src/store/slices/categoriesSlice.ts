@@ -57,6 +57,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         console.log('No categories found, creating default categories in Supabase...');
         const defaultCategories = getDefaultCategories();
 
+        const activeSpaceId = (get() as any).activeSpaceId;
         const categoriesToInsert = defaultCategories.map(cat => ({
           name: cat.name,
           icon: cat.icon,
@@ -64,6 +65,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
           usage_count: 0,
           financial_type: 'unclassified',
           user_id: userId,
+          space_id: activeSpaceId || undefined,
         }));
 
         const { data: insertedData, error: insertError } = await supabase
@@ -115,6 +117,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         return;
       }
 
+      const activeSpaceId = (get() as any).activeSpaceId;
       const { data, error } = await supabase.from('categories').insert([{
         name: categoryData.name,
         icon: categoryData.icon,
@@ -122,6 +125,7 @@ export const createCategoriesSlice: StateCreator<CategoriesSlice> = (set, get) =
         usage_count: 0,
         financial_type: 'unclassified',
         user_id: userId,
+        space_id: activeSpaceId || undefined,
       }]).select();
 
       if (error) {

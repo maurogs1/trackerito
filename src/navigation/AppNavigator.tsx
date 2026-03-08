@@ -12,6 +12,8 @@ import CategoriesScreen from '../features/settings/screens/CategoriesScreen';
 import CategoryFormScreen from '../features/settings/screens/CategoryFormScreen';
 import IncomeTypesScreen from '../features/settings/screens/IncomeTypesScreen';
 import IncomeTypeFormScreen from '../features/settings/screens/IncomeTypeFormScreen';
+import SpacesScreen from '../features/settings/screens/SpacesScreen';
+import SpaceFormScreen from '../features/settings/screens/SpaceFormScreen';
 import MonthlyPaymentsScreen from '../features/monthlyPayments/screens/MonthlyPaymentsScreen';
 import RecurringServicesScreen from '../features/monthlyPayments/screens/RecurringServicesScreen';
 import AddRecurringServiceScreen from '../features/monthlyPayments/screens/AddRecurringServiceScreen';
@@ -22,6 +24,8 @@ import StatisticsScreen from '../features/statistics/screens/StatisticsScreen';
 import { StatusBar } from 'expo-status-bar';
 import Toast from '../shared/components/Toast';
 import { useToast } from '../shared/hooks/useToast';
+import ConfirmModal from '../shared/components/ConfirmModal';
+import { useConfirm } from '../shared/hooks/useConfirm';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -46,6 +50,8 @@ export type RootStackParamList = {
   CategoryForm: { categoryId?: string } | undefined;
   IncomeTypes: undefined;
   IncomeTypeForm: { incomeTypeId?: string } | undefined;
+  Spaces: undefined;
+  SpaceForm: { spaceId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -60,6 +66,7 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const { toast, hideToast } = useToast();
+  const { config: confirmConfig, handleConfirm, handleCancel } = useConfirm();
 
   // Set up Supabase auth listener
   React.useEffect(() => {
@@ -178,11 +185,14 @@ export default function AppNavigator({ navigationRef, onReady }: AppNavigatorPro
             <Stack.Screen name="CategoryForm" component={CategoryFormScreen} options={{ title: 'Nueva Categoría' }} />
             <Stack.Screen name="IncomeTypes" component={IncomeTypesScreen} options={{ title: 'Tipos de Ingreso' }} />
             <Stack.Screen name="IncomeTypeForm" component={IncomeTypeFormScreen} options={{ title: 'Nuevo Tipo' }} />
+            <Stack.Screen name="Spaces" component={SpacesScreen} options={{ title: 'Espacios' }} />
+            <Stack.Screen name="SpaceForm" component={SpaceFormScreen} options={{ title: 'Nuevo Espacio' }} />
           </>
         )}
         </Stack.Navigator>
       </NavigationContainer>
       <Toast toast={toast} onHide={hideToast} isDark={isDark} />
+      <ConfirmModal config={confirmConfig} onConfirm={handleConfirm} onCancel={handleCancel} isDark={isDark} />
     </>
   );
 }

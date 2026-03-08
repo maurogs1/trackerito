@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, TouchableWithoutFeedback, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, shadows, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { RecurringService } from '../types';
 import { useToast } from '../../../shared/hooks/useToast';
+import { confirm } from '../../../shared/hooks/useConfirm';
 import { SwipeableRow } from '../../../shared/components/SwipeableRow';
 import { SwipeTutorialOverlay, hasSeenSwipeTutorial, markSwipeTutorialSeen } from '../../../shared/components/SwipeTutorialOverlay';
 
@@ -82,18 +83,7 @@ export default function MonthlyPaymentsScreen() {
     const amount = service.estimated_amount;
     const message = `¿Marcar "${service.name}" como pagado?\n\nMonto: $${formatCurrencyDisplay(amount)}`;
 
-    const confirmed = Platform.OS === 'web'
-      ? (globalThis as any).confirm?.(message) ?? true
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Confirmar pago',
-            message,
-            [
-              { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Confirmar', onPress: () => resolve(true) },
-            ]
-          );
-        });
+    const confirmed = await confirm('Confirmar pago', message, { confirmText: 'Confirmar' });
 
     if (confirmed) {
       const categoryIds = service.category_id ? [service.category_id] : [];
@@ -122,18 +112,7 @@ export default function MonthlyPaymentsScreen() {
   const handleUnmarkPayment = async (service: RecurringService) => {
     const message = `¿Querés marcar "${service.name}" como no pagado?\n\nEsto eliminará el registro de pago y el gasto asociado.`;
 
-    const confirmed = Platform.OS === 'web'
-      ? (globalThis as any).confirm?.(message) ?? true
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Deshacer pago',
-            message,
-            [
-              { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Deshacer pago', style: 'destructive', onPress: () => resolve(true) },
-            ]
-          );
-        });
+    const confirmed = await confirm('Deshacer pago', message, { confirmText: 'Deshacer pago', destructive: true });
 
     if (confirmed) {
       try {

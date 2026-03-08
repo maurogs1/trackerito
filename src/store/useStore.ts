@@ -15,6 +15,7 @@ import { createIncomeSlice, IncomeSlice } from './slices/incomeSlice';
 import { createIncomeTypesSlice, IncomeTypesSlice } from './slices/incomeTypesSlice';
 import { createPaymentGroupsSlice, PaymentGroupsSlice } from './slices/paymentGroupsSlice';
 import { createUserProfileSlice, UserProfileSlice } from './slices/userProfileSlice';
+import { createSpacesSlice, SpacesSlice } from './slices/spacesSlice';
 
 // Combined store type
 export type StoreState = AuthSlice &
@@ -28,7 +29,8 @@ export type StoreState = AuthSlice &
   IncomeSlice &
   IncomeTypesSlice &
   PaymentGroupsSlice &
-  UserProfileSlice;
+  UserProfileSlice &
+  SpacesSlice;
 
 // Create the combined store
 export const useStore = create<StoreState>()(
@@ -46,6 +48,7 @@ export const useStore = create<StoreState>()(
       ...createIncomeTypesSlice(...a),
       ...createPaymentGroupsSlice(...a),
       ...createUserProfileSlice(...a),
+      ...createSpacesSlice(...a),
     }),
     {
       name: 'trackerito-storage',
@@ -65,6 +68,8 @@ export const useStore = create<StoreState>()(
         preferences: state.preferences,
         paymentGroups: state.paymentGroups,
         userProfile: state.userProfile,
+        spaces: state.spaces,
+        activeSpaceId: state.activeSpaceId,
       }),
     }
   )

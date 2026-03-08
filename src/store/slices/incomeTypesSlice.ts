@@ -71,9 +71,10 @@ export const createIncomeTypesSlice: StateCreator<IncomeTypesSlice> = (set, get)
       const userId = (get() as any).user?.id;
       if (!userId) return;
 
+      const activeSpaceId = (get() as any).activeSpaceId;
       const { data, error } = await supabase
         .from('income_types')
-        .insert([{ user_id: userId, name: itemData.name, icon: itemData.icon, color: itemData.color }])
+        .insert([{ user_id: userId, name: itemData.name, icon: itemData.icon, color: itemData.color, space_id: activeSpaceId || undefined }])
         .select()
         .single();
 
@@ -139,7 +140,8 @@ export const createIncomeTypesSlice: StateCreator<IncomeTypesSlice> = (set, get)
       const userId = (get() as any).user?.id;
       if (!userId) return;
 
-      const toInsert = DEFAULT_INCOME_TYPES.map((t) => ({ ...t, user_id: userId }));
+      const activeSpaceId = (get() as any).activeSpaceId;
+      const toInsert = DEFAULT_INCOME_TYPES.map((t) => ({ ...t, user_id: userId, space_id: activeSpaceId || undefined }));
       const { data, error } = await supabase.from('income_types').insert(toInsert).select();
 
       if (error) {

@@ -1,10 +1,11 @@
-import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius } from '../../../shared/theme';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useEffect } from 'react';
+import { useToast } from '../../../shared/hooks/useToast';
 import { Ionicons } from '@expo/vector-icons';
 
 type SettingsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
@@ -14,6 +15,7 @@ export default function SettingsScreen() {
   const { preferences, toggleTheme, user, loadUserProfile } = useStore();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
+  const { showError } = useToast();
 
   useEffect(() => {
     loadUserProfile();
@@ -143,6 +145,12 @@ export default function SettingsScreen() {
             label="Tipos de Ingreso"
             onPress={() => navigation.navigate('IncomeTypes')}
           />
+          <NavRow
+            icon="layers"
+            iconBg="#795548"
+            label="Espacios"
+            onPress={() => navigation.navigate('Spaces')}
+          />
         </View>
 
         {/* Herramientas */}
@@ -181,7 +189,7 @@ export default function SettingsScreen() {
                 const { signOut } = useStore.getState();
                 await signOut();
               } catch {
-                Alert.alert('Error', 'Hubo un problema al cerrar sesión');
+                showError('Hubo un problema al cerrar sesión');
               }
             }}
             activeOpacity={0.7}

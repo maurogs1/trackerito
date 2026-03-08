@@ -47,6 +47,9 @@ export interface Expense {
 
   // Grupo de pago (ej: "TC Macro", "TC Visa")
   paymentGroupId?: string; // Foreign Key to PaymentGroups table
+
+  // Espacio
+  spaceId?: string; // Foreign Key to Spaces table
 }
 
 export interface ExpenseSummary {

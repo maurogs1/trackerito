@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useStore } from '../../../store/useStore';
 import { theme, typography, spacing, borderRadius, createCommonStyles } from '../../../shared/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { formatCurrencyDisplay } from '../../../shared/utils/currency';
 import { useToast } from '../../../shared/hooks/useToast';
+import { confirm } from '../../../shared/hooks/useConfirm';
 import { PaymentGroup } from '../../expenses/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -30,7 +31,7 @@ export default function PaymentGroupsScreen() {
     expenses,
     preferences,
   } = useStore();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess, showError, showInfo } = useToast();
   const isDark = preferences.theme === 'dark';
   const currentTheme = isDark ? theme.dark : theme.light;
   const common = createCommonStyles(currentTheme);
@@ -72,7 +73,7 @@ export default function PaymentGroupsScreen() {
 
   const handleSave = async () => {
     if (!groupName.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un nombre para el grupo');
+      showError('Por favor ingresa un nombre para el grupo');
       return;
     }
 
@@ -99,49 +100,38 @@ export default function PaymentGroupsScreen() {
     loadPaymentGroups();
   };
 
-  const handleDelete = (group: PaymentGroup) => {
-    Alert.alert(
+  const handleDelete = async (group: PaymentGroup) => {
+    const ok = await confirm(
       'Eliminar Grupo',
       `¿Eliminar "${group.name}"? Los gastos asociados no se eliminarán, solo se desvinculan del grupo.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            await deletePaymentGroup(group.id);
-            showSuccess(`"${group.name}" eliminado`);
-            loadPaymentGroups();
-          },
-        },
-      ]
+      { confirmText: 'Eliminar', destructive: true }
     );
+    if (ok) {
+      await deletePaymentGroup(group.id);
+      showSuccess(`"${group.name}" eliminado`);
+      loadPaymentGroups();
+    }
   };
 
-  const handlePaySummary = (group: PaymentGroup) => {
+  const handlePaySummary = async (group: PaymentGroup) => {
     const groupExpenses = getGroupExpenses(group.id, currentMonth, currentYear);
     const pendingExpenses = groupExpenses.filter((e: any) => e.paymentStatus === 'pending');
     const totalPending = pendingExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
 
     if (pendingExpenses.length === 0) {
-      Alert.alert('Sin Pendientes', 'No hay gastos pendientes en este grupo para este mes.');
+      showInfo('No hay gastos pendientes en este grupo para este mes.');
       return;
     }
 
-    Alert.alert(
+    const ok = await confirm(
       'Pagar Resumen',
       `Se marcarán ${pendingExpenses.length} gastos como pagados.\n\nTotal: $${formatCurrencyDisplay(totalPending)}`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Pagar Todo',
-          onPress: async () => {
-            await payGroupSummary(group.id, currentMonth, currentYear);
-            showSuccess(`Resumen de "${group.name}" pagado`);
-          },
-        },
-      ]
+      { confirmText: 'Pagar Todo' }
     );
+    if (ok) {
+      await payGroupSummary(group.id, currentMonth, currentYear);
+      showSuccess(`Resumen de "${group.name}" pagado`);
+    }
   };
 
   const getGroupStats = (groupId: string) => {

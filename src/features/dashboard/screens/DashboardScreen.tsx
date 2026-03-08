@@ -27,7 +27,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const GRID_ITEM_WIDTH = (width - 32 - GRID_GAP) / 2 - 1;
-  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense, removeExpense, deleteRecurringService, markServiceAsPaid } = useStore();
+  const { expenses, getCurrentExpenses, loadExpenses, getSummary, preferences, user, categories, getBalance, getMonthlyIncomeBreakdown, loadIncomes, loadRecurringServices, loadServicePayments, recurringServices, getServicePaymentStatus, toggleHideIncome, toggleHideExpenses, closeMonth, addExpense, removeExpense, deleteRecurringService, markServiceAsPaid, spaces, activeSpaceId, setActiveSpace } = useStore();
   const { showToast, showError } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -392,18 +392,28 @@ export default function DashboardScreen() {
     return tipsList.slice(0, 3);
   }, [currentExpenses, balance, summary, topCategory, categories]);
 
+  const activeSpace = spaces.find(s => s.id === activeSpaceId);
+  const isDefaultSpace = !activeSpaceId || !!(activeSpace?.isDefault);
+  const activeSpaceServices = useMemo(() => {
+    if (!activeSpaceId) return recurringServices;
+    return recurringServices.filter((s: any) => {
+      if (isDefaultSpace) return !s.space_id || s.space_id === activeSpaceId;
+      return s.space_id === activeSpaceId;
+    });
+  }, [recurringServices, activeSpaceId, isDefaultSpace]);
+
   const pendingFixedExpenses = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
 
-    return recurringServices
+    return activeSpaceServices
       .filter(service => {
         const payment = getServicePaymentStatus(service.id, currentMonth, currentYear);
         return payment?.status !== 'paid';
       })
       .sort((a, b) => a.day_of_month - b.day_of_month);
-  }, [recurringServices, getServicePaymentStatus]);
+  }, [activeSpaceServices, getServicePaymentStatus]);
 
   const styles = StyleSheet.create({
     container: {
@@ -524,12 +534,25 @@ export default function DashboardScreen() {
     user?.user_metadata?.picture ||
     (user?.email ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}` : 'https://ui-avatars.com/api/?name=Invitado');
 
+  const [showSpacePicker, setShowSpacePicker] = useState(false);
+
   const stickyHeader = (
     <View style={[styles.header, { paddingTop: insets.top + spacing.sm, backgroundColor: currentTheme.background }]}>
-      <View>
+      <View style={{ flex: 1 }}>
         <Text style={[typography.title, { color: currentTheme.text }]}>
           Hola, {firstName}
         </Text>
+        {spaces.length > 1 && activeSpace && (
+          <TouchableOpacity
+            onPress={() => setShowSpacePicker(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={activeSpace.icon as any} size={13} color={activeSpace.color} />
+            <Text style={[typography.caption, { color: activeSpace.color }]}>{activeSpace.name}</Text>
+            <Ionicons name="chevron-down" size={12} color={activeSpace.color} />
+          </TouchableOpacity>
+        )}
       </View>
       <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
         <Image source={{ uri: avatarUri }} style={styles.avatar} />
@@ -629,35 +652,21 @@ export default function DashboardScreen() {
                 </View>
               )}
 
-              <View style={{ flexDirection: 'row', marginTop: spacing.lg, gap: spacing.lg, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <View style={{ flexDirection: 'row', marginTop: spacing.lg, gap: spacing.lg, justifyContent: 'center' }}>
                 <View style={{ alignItems: 'center', minWidth: 70 }}>
                   <Text style={[typography.small, { color: 'rgba(255,255,255,0.7)' }]}>Ingresos</Text>
-                  <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>{displayIncome(balance.confirmedIncome)}</Text>
-                  {balance.pendingIncome > 0 && !hideIncome && (
-                    <View style={{ backgroundColor: 'rgba(255,213,79,0.3)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginTop: 2 }}>
-                      <Text style={[typography.small, { color: '#FFD54F', fontSize: 10 }]}>
-                        +${formatCurrencyDisplay(balance.pendingIncome)} pendiente
-                      </Text>
-                    </View>
-                  )}
-                  {balance.carryover > 0 && !hideIncome && (
-                    <View style={{ backgroundColor: 'rgba(129,199,132,0.3)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginTop: 2 }}>
-                      <Text style={[typography.small, { color: '#81C784', fontSize: 10 }]}>
-                        +${formatCurrencyDisplay(balance.carryover)} anterior
-                      </Text>
-                    </View>
-                  )}
+                  <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>{displayIncome(balance.totalIncome)}</Text>
                 </View>
                 <View style={{ alignItems: 'center', minWidth: 70 }}>
                   <Text style={[typography.small, { color: 'rgba(255,255,255,0.7)' }]}>Gastado</Text>
                   <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>{displayExpense(balance.totalExpenses)}</Text>
                 </View>
-                {balance.pendingRecurring > 0 && (
-                  <View style={{ alignItems: 'center', minWidth: 70 }}>
-                    <Text style={[typography.small, { color: 'rgba(255,255,255,0.7)' }]}>Por Pagar</Text>
-                    <Text style={[typography.bodyBold, { color: '#FFD54F' }]}>{displayExpense(balance.pendingRecurring)}</Text>
-                  </View>
-                )}
+                <View style={{ alignItems: 'center', minWidth: 70 }}>
+                  <Text style={[typography.small, { color: 'rgba(255,255,255,0.7)' }]}>Por Pagar</Text>
+                  <Text style={[typography.bodyBold, { color: balance.pendingRecurring > 0 ? '#FFD54F' : '#FFFFFF' }]}>
+                    {displayExpense(balance.pendingRecurring)}
+                  </Text>
+                </View>
               </View>
             </>
           )}
@@ -1099,6 +1108,34 @@ export default function DashboardScreen() {
                   <Text style={[typography.bodyBold, { color: '#FFFFFF' }]}>Eliminar</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal selector de espacio */}
+      <Modal visible={showSpacePicker} transparent animationType="fade" onRequestClose={() => setShowSpacePicker(false)}>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-start', alignItems: 'flex-start', paddingTop: insets.top + 60, paddingLeft: spacing.lg }}
+          activeOpacity={1}
+          onPress={() => setShowSpacePicker(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={{ backgroundColor: currentTheme.card, borderRadius: borderRadius.lg, padding: spacing.md, minWidth: 200, maxWidth: 280, borderWidth: 1, borderColor: currentTheme.border }}>
+              {spaces.map((space) => (
+                <TouchableOpacity
+                  key={space.id}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: borderRadius.md, backgroundColor: space.id === activeSpaceId ? currentTheme.primary + '18' : 'transparent' }}
+                  onPress={() => {
+                    setActiveSpace(space.id);
+                    setShowSpacePicker(false);
+                  }}
+                >
+                  <Ionicons name={space.icon as any} size={18} color={space.color} />
+                  <Text style={[typography.body, { color: currentTheme.text, flex: 1 }]} numberOfLines={1}>{space.name}</Text>
+                  {space.id === activeSpaceId && <Ionicons name="checkmark" size={16} color={currentTheme.primary} />}
+                </TouchableOpacity>
+              ))}
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
